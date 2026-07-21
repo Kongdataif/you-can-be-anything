@@ -25,7 +25,7 @@ For the game:
 For the optional live AI mode:
 
 - Python 3.10 or newer
-- An authorized credential for the configured OpenAI-compatible gateway
+- Either an authorized Sogang gateway credential or an OpenAI API key with billing enabled
 
 The offline game does not require Python, an API key, or internet access beyond what is included with the Ren'Py SDK.
 
@@ -38,7 +38,11 @@ cd you-can-be-anything
 
 You can also download the repository as a ZIP and extract it.
 
-## Run the game offline
+## Run the game
+
+The complete offline path is available to every user and does not require an API key.
+
+### Offline mode
 
 1. Download and extract the Ren'Py SDK.
 2. Start the Ren'Py Launcher.
@@ -64,41 +68,68 @@ you-can-be-anything/
 └── README.md
 ```
 
-## Run with live GPT-5.6 Luna
+## Optional live AI mode
 
-The game never stores an API credential. Live requests go through a localhost proxy that reads the credential from the environment or from an external file.
+The game never stores an API credential. Live requests go through a localhost proxy. You must explicitly choose either the Sogang gateway or the official OpenAI API; credentials are never shared between providers.
 
-### 1. Configure the credential
+### Sogang University gateway
+
+This configuration is available only to users with an authorized Sogang University gateway credential. The credential is not included in this repository and must not be shared.
 
 PowerShell:
 
 ```powershell
 $env:SOGANG_API_KEY = "your-authorized-key"
-python scripts\story_api_server.py
+python scripts\story_api_server.py --provider sogang
 ```
 
 macOS or Linux:
 
 ```bash
 export SOGANG_API_KEY="your-authorized-key"
-python3 scripts/story_api_server.py
+python3 scripts/story_api_server.py --provider sogang
 ```
 
-Alternatively, keep the credential in a file outside the repository:
+<details>
+<summary>Use an external Sogang credential file</summary>
+
+Keep the credential file outside the repository:
 
 ```text
 key: your-authorized-key
 ```
 
-Then start the proxy with:
+Start the proxy with the provider selected explicitly:
 
 ```bash
-python scripts/story_api_server.py --key-file /path/to/external-key-file.txt
+python scripts/story_api_server.py --provider sogang --key-file /path/to/external-key-file.txt
 ```
 
-Do not place the credential file inside the repository.
+Do not place the credential file inside the repository or distribute it with the game.
 
-### 2. Verify the proxy
+</details>
+
+### Official OpenAI API
+
+General users may use their own OpenAI API account. API usage is billed to that account. Select the provider explicitly so the key is sent only to `api.openai.com`.
+
+PowerShell:
+
+```powershell
+$env:OPENAI_API_KEY = "your-openai-api-key"
+python scripts\story_api_server.py --provider openai
+```
+
+macOS or Linux:
+
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+python3 scripts/story_api_server.py --provider openai
+```
+
+The proxy does not fall back between providers. `SOGANG_API_KEY` is read only in `sogang` mode, and `OPENAI_API_KEY` is read only in `openai` mode.
+
+### Verify the proxy
 
 Open the following address in a browser:
 
@@ -106,9 +137,9 @@ Open the following address in a browser:
 http://127.0.0.1:8765/health
 ```
 
-A healthy response reports `gpt-5.6-luna` and the current story schema.
+A healthy response reports the selected provider, `gpt-5.6-luna`, and the current story schema.
 
-### 3. Launch the game
+### Launch the game with the proxy
 
 Launch the project from Ren'Py and start a new playthrough. The overlay displays:
 
@@ -123,7 +154,7 @@ A complete live cycle uses six text requests:
 3. Every advance returns the selected scene, established facts, and the next choices.
 4. The final advance returns an epilogue instead of more choices.
 
-Successful text responses are cached locally. Repeating an identical request reuses the cached result.
+Successful text responses are cached locally per provider. Repeating an identical request with the same provider reuses the cached result.
 
 ## Optional finale illustration
 
@@ -197,26 +228,26 @@ The packaged game supports the complete offline path. The localhost proxy and cr
 
 ```text
 Ren'Py client
-├── profile and genre input
-├── five-act choice flow
-├── offline story generator
-├── finale and archive persistence
-└── optional illustration UI
-        │
-        ▼
+    |
+    +-- offline story path (no proxy or credential)
+    |
+    `-- optional live requests
+            |
 Local Python proxy
-├── credential boundary
-├── /choices
-├── /advance
-├── /illustration
-├── response validation
-└── content-addressed caches
-        │
-        ▼
-Configured OpenAI-compatible gateway
+    |-- /choices
+    |-- /advance
+    |-- /illustration
+    |-- response validation
+    |-- provider-specific caches
+    |
+    +-- provider=sogang
+    |       `-- SOGANG_API_KEY -> Mindlogic gateway
+    |
+    `-- provider=openai
+            `-- OPENAI_API_KEY -> api.openai.com
 ```
 
-The credential remains in the proxy process and is never returned to Ren'Py.
+The credential remains in the proxy process and is never returned to Ren'Py. Provider selection is explicit: the proxy never sends an OpenAI key to the Sogang gateway or a Sogang key to OpenAI.
 
 ## Built with Codex and GPT-5.6
 
@@ -233,7 +264,7 @@ GPT-5.6 Luna is also the optional runtime story engine. It receives structured c
 
 ## Known limitations
 
-- Live AI requires an authorized gateway credential and the separately running proxy.
+- Live AI requires the separately running proxy and either an authorized Sogang credential or a billed OpenAI API account.
 - The distributed game is intended to remain fully usable through offline mode.
 - Soundtrack metadata is present, but audio files and adaptive BGM generation are not yet included.
 - A player-facing archive gallery is not yet implemented; saved sessions can be opened from the filesystem.

@@ -34,7 +34,7 @@ A registered `bgm` channel supports the overlay toggle. Soundtrack metadata is i
 
 ## Known limitations
 
-- Live AI requires an authorized Sogang University Gateway credential and a local proxy process.
+- Live AI requires the local proxy and an explicitly selected provider: either an authorized Sogang University gateway credential or a billed OpenAI API account. Provider credentials are isolated and never used as cross-provider fallbacks.
 - The downloadable judge build is intended to be tested through its complete offline flow.
 - Earlier decisions contribute to context and the finale but do not yet unlock separate branching act graphs.
 - A player-facing archive browser and bundled licensed soundtrack are future work.

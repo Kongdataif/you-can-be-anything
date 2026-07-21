@@ -17,7 +17,24 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
 
-DEFAULT_GATEWAY = "https://factchat-cloud.mindlogic.ai/v1/gateway"
+DEFAULT_PROVIDER = "sogang"
+PROVIDERS = {
+    "sogang": {
+        "gateway": "https://factchat-cloud.mindlogic.ai/v1/gateway",
+        "key_env": "SOGANG_API_KEY",
+        "responses_path": "/responses/",
+        "images_path": "/images/generate/",
+        "image_count_field": "number_of_images",
+    },
+    "openai": {
+        "gateway": "https://api.openai.com/v1",
+        "key_env": "OPENAI_API_KEY",
+        "responses_path": "/responses",
+        "images_path": "/images/generations",
+        "image_count_field": "n",
+    },
+}
+DEFAULT_GATEWAY = PROVIDERS[DEFAULT_PROVIDER]["gateway"]
 DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_IMAGE_MODEL = "gpt-image-1-mini"
 CHOICE_SCHEMA_VERSION = 3
@@ -35,16 +52,32 @@ def default_cache_dir() -> Path:
     return Path(root) / "YouCanBeAnything" / "generated"
 
 
-def story_request_digest(path: str, context: dict[str, Any], model: str) -> str:
+def provider_config(provider: str, gateway: str | None = None) -> dict[str, str]:
+    if provider not in PROVIDERS:
+        raise ValueError(f"Unsupported provider: {provider}")
+    config = dict(PROVIDERS[provider])
+    if gateway:
+        config["gateway"] = gateway.rstrip("/")
+    return config
+
+
+def provider_url(provider: str, operation: str, gateway: str | None = None) -> str:
+    config = provider_config(provider, gateway)
+    path_key = "responses_path" if operation == "responses" else "images_path"
+    return f"{config['gateway'].rstrip('/')}{config[path_key]}"
+
+
+def story_request_digest(path: str, context: dict[str, Any], model: str, provider: str = DEFAULT_PROVIDER) -> str:
     canonical = json.dumps(
-        {"path": path, "context": context, "model": model, "schema": CHOICE_SCHEMA_VERSION},
+        {"path": path, "context": context, "model": model, "provider": provider, "schema": CHOICE_SCHEMA_VERSION},
         ensure_ascii=False, sort_keys=True, separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
 
 
-def load_key(key_file: str | None = None) -> str:
-    key = os.environ.get("SOGANG_API_KEY") or os.environ.get("OPENAI_API_KEY")
+def load_key(provider: str = DEFAULT_PROVIDER, key_file: str | None = None) -> str:
+    config = provider_config(provider)
+    key = os.environ.get(config["key_env"])
     if key:
         return key.strip()
     if key_file:
@@ -52,7 +85,7 @@ def load_key(key_file: str | None = None) -> str:
         match = re.search(r"(?m)^key\s*:\s*(\S+)", raw)
         if match:
             return match.group(1).strip()
-    raise RuntimeError("Set SOGANG_API_KEY or pass --key-file outside the repository.")
+    raise RuntimeError(f"Set {config['key_env']} or pass --key-file outside the repository.")
 
 
 def gateway_request(url: str, body: dict[str, Any], key: str, timeout: int = 120) -> dict[str, Any]:
@@ -63,7 +96,7 @@ def gateway_request(url: str, body: dict[str, Any], key: str, timeout: int = 120
             "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "Sogang-RenPy-Story/1.0",
+            "User-Agent": "You-Can-Be-Anything/1.0",
         },
         method="POST",
     )
@@ -137,9 +170,12 @@ Return only JSON:
 """
 
 
-def generate_choices(context: dict[str, Any], key: str, model: str, gateway: str) -> dict[str, Any]:
+def generate_choices(
+    context: dict[str, Any], key: str, model: str, gateway: str,
+    provider: str = DEFAULT_PROVIDER,
+) -> dict[str, Any]:
     raw = gateway_request(
-        f"{gateway.rstrip('/')}/responses/",
+        provider_url(provider, "responses", gateway),
         {"model": model, "input": [{"role": "user", "content": build_choice_prompt(context)}], "max_output_tokens": 1000},
         key,
     )
@@ -155,9 +191,12 @@ def generate_choices(context: dict[str, Any], key: str, model: str, gateway: str
     return {"kind": "choices", "server_build": SERVER_BUILD_ID, "model": model, "schema_version": CHOICE_SCHEMA_VERSION, "choices": normalized}
 
 
-def advance_story(context: dict[str, Any], key: str, model: str, gateway: str) -> dict[str, Any]:
+def advance_story(
+    context: dict[str, Any], key: str, model: str, gateway: str,
+    provider: str = DEFAULT_PROVIDER,
+) -> dict[str, Any]:
     raw = gateway_request(
-        f"{gateway.rstrip('/')}/responses/",
+        provider_url(provider, "responses", gateway),
         {"model": model, "input": [{"role": "user", "content": build_advance_prompt(context)}], "max_output_tokens": 2200},
         key,
     )
@@ -227,9 +266,12 @@ Do not include text, captions, logos, watermarks, UI, split panels, or duplicate
 """
 
 
-def illustration_digest(context: dict[str, Any], model: str, quality: str) -> str:
+def illustration_digest(
+    context: dict[str, Any], model: str, quality: str,
+    provider: str = DEFAULT_PROVIDER,
+) -> str:
     canonical = json.dumps(
-        {"context": normalize_illustration_context(context), "model": model, "quality": quality},
+        {"context": normalize_illustration_context(context), "model": model, "quality": quality, "provider": provider},
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -259,12 +301,14 @@ def generate_illustration(
     context: dict[str, Any], key: str, model: str, quality: str, gateway: str,
     cache_dir: Path, mock: bool = False,
     requester: Callable[[str, dict[str, Any], str, int], dict[str, Any]] = gateway_request,
+    provider: str = DEFAULT_PROVIDER,
 ) -> dict[str, Any]:
     if model not in IMAGE_CREDITS:
         raise ValueError("Image model is not allowed by the cost guard")
     if quality not in {"low", "medium", "high"}:
         raise ValueError("Unsupported image quality")
-    digest = illustration_digest(context, model, quality)
+    config = provider_config(provider, gateway)
+    digest = illustration_digest(context, model, quality, provider)
     cache_dir.mkdir(parents=True, exist_ok=True)
     image_path = cache_dir / f"illustration_{digest[:16]}.png"
     if image_path.is_file() and image_path.stat().st_size > 0:
@@ -277,9 +321,16 @@ def generate_illustration(
         if mock:
             image_bytes = MOCK_PNG
         else:
+            image_body = {
+                "model": model,
+                "prompt": build_illustration_prompt(context),
+                "quality": quality,
+                config["image_count_field"]: 1,
+                "background": "opaque",
+            }
             response = requester(
-                f"{gateway.rstrip('/')}/images/generate/",
-                {"model": model, "prompt": build_illustration_prompt(context), "quality": quality, "number_of_images": 1, "background": "opaque"},
+                provider_url(provider, "images", gateway),
+                image_body,
                 key,
                 180,
             )
@@ -301,6 +352,7 @@ class StoryHandler(BaseHTTPRequestHandler):
     image_model = DEFAULT_IMAGE_MODEL
     image_quality = "low"
     gateway = DEFAULT_GATEWAY
+    provider = DEFAULT_PROVIDER
     cache_dir = default_cache_dir()
     mock_images = False
 
@@ -314,7 +366,7 @@ class StoryHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/health":
-            self._send(200, {"ok": True, "server_build": SERVER_BUILD_ID, "model": self.model, "choice_schema_version": CHOICE_SCHEMA_VERSION, "image_model": self.image_model, "image_credits": IMAGE_CREDITS[self.image_model], "mock_images": self.mock_images})
+            self._send(200, {"ok": True, "server_build": SERVER_BUILD_ID, "provider": self.provider, "model": self.model, "choice_schema_version": CHOICE_SCHEMA_VERSION, "image_model": self.image_model, "image_credits": IMAGE_CREDITS[self.image_model], "mock_images": self.mock_images})
         else:
             self._send(404, {"error": "not_found"})
 
@@ -328,14 +380,14 @@ class StoryHandler(BaseHTTPRequestHandler):
             if not isinstance(context, dict):
                 raise ValueError("Request body must be a JSON object")
             if self.path in {"/choices", "/advance"}:
-                request_id = story_request_digest(self.path, context, self.model)
+                request_id = story_request_digest(self.path, context, self.model, self.provider)
                 story_cache = self.cache_dir / "story_responses"
                 cache_file = story_cache / f"{request_id}.json"
                 if cache_file.is_file():
                     result = json.loads(cache_file.read_text(encoding="utf-8"))
                     result["cached"] = True
                 else:
-                    result = generate_choices(context, self.key, self.model, self.gateway) if self.path == "/choices" else advance_story(context, self.key, self.model, self.gateway)
+                    result = generate_choices(context, self.key, self.model, self.gateway, self.provider) if self.path == "/choices" else advance_story(context, self.key, self.model, self.gateway, self.provider)
                     result["request_id"] = request_id
                     result["cached"] = False
                     story_cache.mkdir(parents=True, exist_ok=True)
@@ -343,7 +395,7 @@ class StoryHandler(BaseHTTPRequestHandler):
                     temporary.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
                     temporary.replace(cache_file)
             else:
-                result = generate_illustration(context, self.key, self.image_model, self.image_quality, self.gateway, self.cache_dir, self.mock_images)
+                result = generate_illustration(context, self.key, self.image_model, self.image_quality, self.gateway, self.cache_dir, self.mock_images, provider=self.provider)
             self._send(200, result)
         except RuntimeError as exc:
             status = 409 if "already running" in str(exc) else 502
@@ -368,11 +420,12 @@ def sample_story_context() -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Local AI story and illustration proxy")
+    parser.add_argument("--provider", choices=sorted(PROVIDERS), default=os.environ.get("STORY_AI_PROVIDER", DEFAULT_PROVIDER))
     parser.add_argument("--key-file", help="External credential guide; never copy it into the repo")
     parser.add_argument("--model", default=os.environ.get("STORY_AI_MODEL", DEFAULT_MODEL))
     parser.add_argument("--image-model", default=os.environ.get("STORY_IMAGE_MODEL", DEFAULT_IMAGE_MODEL))
     parser.add_argument("--image-quality", default=os.environ.get("STORY_IMAGE_QUALITY", "low"))
-    parser.add_argument("--gateway", default=os.environ.get("STORY_AI_GATEWAY", DEFAULT_GATEWAY))
+    parser.add_argument("--gateway", default=os.environ.get("STORY_AI_GATEWAY"), help="Advanced override for the selected provider")
     parser.add_argument("--cache-dir", type=Path, default=default_cache_dir())
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--smoke-test", action="store_true")
@@ -380,23 +433,26 @@ def main() -> int:
     parser.add_argument("--mock-images", action="store_true", help="Never call image API; create a tiny test PNG")
     args = parser.parse_args()
     needs_key = not args.mock_images or not args.image_smoke_test
-    key = load_key(args.key_file) if needs_key else "mock-key-not-used"
+    config = provider_config(args.provider, args.gateway)
+    gateway = config["gateway"]
+    key = load_key(args.provider, args.key_file) if needs_key else "mock-key-not-used"
     if args.smoke_test:
         sample = sample_story_context()
         sample["act"] = {"key": "origin", "title": "Origin", "intent": "Establish the beginning of the journey."}
         sample["previous_choices"] = []
-        result = generate_choices(sample, key, args.model, args.gateway)
+        result = generate_choices(sample, key, args.model, gateway, args.provider)
         print(json.dumps({"ok": True, "model": result["model"], "choice_count": len(result["choices"]), "headlines": [c["headline"] for c in result["choices"]]}, ensure_ascii=False, indent=2))
         return 0
     if args.image_smoke_test:
-        result = generate_illustration(sample_story_context(), key, args.image_model, args.image_quality, args.gateway, args.cache_dir, args.mock_images)
+        result = generate_illustration(sample_story_context(), key, args.image_model, args.image_quality, gateway, args.cache_dir, args.mock_images, provider=args.provider)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
-    StoryHandler.key, StoryHandler.model, StoryHandler.gateway = key, args.model, args.gateway
+    StoryHandler.key, StoryHandler.model, StoryHandler.gateway = key, args.model, gateway
+    StoryHandler.provider = args.provider
     StoryHandler.image_model, StoryHandler.image_quality = args.image_model, args.image_quality
     StoryHandler.cache_dir, StoryHandler.mock_images = args.cache_dir, args.mock_images
     server = ThreadingHTTPServer(("127.0.0.1", args.port), StoryHandler)
-    print(f"Story API ready at http://127.0.0.1:{args.port} using {args.model}; image={args.image_model}/{args.image_quality}")
+    print(f"Story API ready at http://127.0.0.1:{args.port} using provider={args.provider}, model={args.model}; image={args.image_model}/{args.image_quality}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

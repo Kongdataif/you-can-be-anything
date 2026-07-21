@@ -3,12 +3,54 @@ import tempfile
 import threading
 import unittest
 import json
+import os
 import urllib.request
 from pathlib import Path
 from http.server import ThreadingHTTPServer
 from unittest.mock import patch
 
 from scripts import story_api_server as api
+
+
+class ProviderTests(unittest.TestCase):
+    def test_provider_keys_are_never_mixed(self):
+        with patch.dict(os.environ, {
+            "SOGANG_API_KEY": "sogang-test-key",
+            "OPENAI_API_KEY": "openai-test-key",
+        }, clear=True):
+            self.assertEqual(api.load_key("sogang"), "sogang-test-key")
+            self.assertEqual(api.load_key("openai"), "openai-test-key")
+
+    def test_official_openai_routes_and_image_payload(self):
+        self.assertEqual(
+            api.provider_url("openai", "responses"),
+            "https://api.openai.com/v1/responses",
+        )
+        captured = {}
+
+        def requester(url, body, key, timeout):
+            captured.update(url=url, body=body, key=key)
+            return {"data": [{"b64_json": base64.b64encode(api.MOCK_PNG).decode("ascii")}]}
+
+        with tempfile.TemporaryDirectory() as temp:
+            api.generate_illustration(
+                api.sample_story_context(), "openai-test-key", api.DEFAULT_IMAGE_MODEL,
+                "low", api.PROVIDERS["openai"]["gateway"], Path(temp),
+                requester=requester, provider="openai",
+            )
+        self.assertEqual(captured["url"], "https://api.openai.com/v1/images/generations")
+        self.assertEqual(captured["body"]["n"], 1)
+        self.assertNotIn("number_of_images", captured["body"])
+
+    def test_sogang_routes_keep_gateway_contract(self):
+        self.assertEqual(
+            api.provider_url("sogang", "responses"),
+            "https://factchat-cloud.mindlogic.ai/v1/gateway/responses/",
+        )
+        self.assertEqual(
+            api.provider_url("sogang", "images"),
+            "https://factchat-cloud.mindlogic.ai/v1/gateway/images/generate/",
+        )
 
 
 class IllustrationTests(unittest.TestCase):
