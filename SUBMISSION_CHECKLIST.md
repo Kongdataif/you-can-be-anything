@@ -1,71 +1,77 @@
-# Devpost submission handoff
+# Devpost Submission Handoff
 
-Items marked `[USER]` require access to your Codex, YouTube, GitHub, or Devpost account and cannot be completed from the local source folder.
+Items marked `[USER]` require access to your YouTube, Codex, GitHub, or Devpost account.
 
 ## Demo video
 
-- [ ] `[USER]` Record using `DEMO_SCRIPT.md` and keep the final cut below 3:00.
-- [ ] `[USER]` Upload to YouTube with Public visibility.
-- [ ] `[USER]` Verify the URL in a private/incognito browser window.
-- [ ] `[USER]` Paste the verified URL into **Video demo link**.
-- [ ] `[USER]` Confirm the narration covers what was built, how Codex was used, and how GPT-5.6 was used.
+- [ ] `[USER]` Record with `DEMO_SCRIPT.md`; keep the final cut below 3:00.
+- [ ] `[USER]` Confirm the narration explains the project, Codex, and GPT-5.6 Luna.
+- [ ] `[USER]` Confirm no credential or personal information is visible.
+- [ ] `[USER]` Upload to YouTube and set visibility to **Public**.
+- [ ] `[USER]` Wait for HD processing and copyright checks.
+- [ ] `[USER]` Verify playback in a private/incognito window without signing in.
+- [ ] `[USER]` Paste the standard share URL into Devpost's **Video demo link** and preview the embed.
 
-Suggested YouTube title:
-
-```text
-You Can Be Anything — GPT-5.6 Codex Build Week Demo
-```
-
-Suggested description:
+Suggested title:
 
 ```text
-You Can Be Anything is a hybrid Ren'Py interactive story that transforms a player's profile, genre, opening line, and five choices into a personalized finale. GPT-5.6 through Codex was used to inspect, debug, improve, document, and implement the codebase. GPT-5.6 Terra generates live choices through a local key-holding proxy, with an automatic offline procedural fallback.
+You Can Be Anything - GPT-5.6 Codex Build Week Demo
 ```
+
+The prepared description and exact upload procedure are in `DEMO_SCRIPT.md`.
 
 ## Codex feedback Session ID
 
-- [ ] `[USER]` In the Codex session where most of the work was performed, run `/feedback`.
-- [ ] `[USER]` Complete or dismiss the feedback prompts as appropriate and copy the Session ID shown by Codex.
-- [ ] `[USER]` Paste only that letters-and-numbers ID into the Devpost **/feedback Session ID** field.
-- [ ] `[USER]` Recheck for missing characters or accidental spaces.
+- [ ] `[USER]` Run `/feedback` in the Codex session where most project work occurred.
+- [ ] `[USER]` Copy the Session ID shown by Codex.
+- [ ] `[USER]` Paste only that ID into Devpost's **/feedback Session ID** field.
 
-Use the ID from this project-hardening session if this is the session in which the majority of the submitted work was completed. A repository UUID, Git commit hash, conversation URL, or Devpost project ID is not a substitute.
+A Git commit, repository UUID, conversation URL, or Devpost project ID is not a substitute.
 
 ## Repository
 
-- [x] Portable `README.md` with setup, architecture, limitations, judge path, and Codex/GPT-5.6 disclosure is included.
-- [x] Machine-specific absolute setup path has been removed from the primary documentation.
-- [x] Local repository metadata has been initialized.
-- [ ] `[USER]` Create an empty private GitHub repository without auto-generating a README or `.gitignore`.
-- [ ] `[USER]` Add that repository as `origin` and push the local branch.
-- [ ] `[USER]` Invite `testing@devpost.com` and `build-week-event@openai.com` using the access method specified by the event.
-- [ ] `[USER]` Open the repository URL in the invited account or verify both invitations/access entries.
-- [ ] `[USER]` Paste the repository URL into the required Devpost field.
+- [x] Portable README, architecture, limitations, judge path, and Codex/GPT-5.6 disclosure included.
+- [x] Machine-specific absolute paths removed from primary documentation.
+- [x] Private GitHub repository created and configured as `origin`.
+- [ ] `[USER]` Commit and push the latest documentation.
+- [ ] `[USER]` Confirm the repository is accessible at `https://github.com/Kongdataif/you-can-be-anything`.
+- [ ] `[USER]` For a private repository, provide access using the exact Devpost/OpenAI event instructions.
+- [ ] `[USER]` Paste the repository URL into Devpost.
 
-Example commands after replacing the placeholder URL:
+Latest-document push:
 
 ```powershell
-git add .
-git commit -m "Prepare You Can Be Anything submission"
-git branch -M main
-git remote add origin https://github.com/YOUR_ACCOUNT/YOUR_REPOSITORY.git
-git push -u origin main
+git add README.md SPECIFICATION.md DEMO_SCRIPT.md SUBMISSION_CHECKLIST.md
+git commit -m "Update submission and demo documentation"
+git push
 ```
 
-Do not paste credentials, personal access tokens, or judge-only secrets into the repository or Devpost public story.
+Never commit credentials, personal access tokens, generated save data, or secret files.
 
-## Judge test instructions
+## Technical verification
 
-Paste or adapt this into the private judge instructions field:
+- [x] Ren'Py 8.5.3 Lint passed with no errors or warnings.
+- [x] Game launch confirmed.
+- [x] API-free proxy mock tests passed.
+- [ ] `[USER]` Complete one full offline five-act cycle.
+- [ ] `[USER]` Confirm `story.txt` and `session.json` appear in the reported archive folder.
+- [ ] `[USER]` Build a Windows distribution ZIP and launch the extracted copy.
+- [ ] `[USER]` Upload the ZIP to a GitHub Release or another judge-accessible location.
+
+Judge instructions:
 
 ```text
-Install Ren'Py 8.4.1 or a compatible newer 8.x SDK. Clone the repository and follow README.md. To test live AI choices, start `scripts/story_api_server.py` with an authorized external credential file or the `SOGANG_API_KEY` environment variable; never place the key in the repository. Without the proxy, the game automatically uses its offline procedural generator. Referenced audio is not bundled, so unassigned soundtrack entries are expected.
+Download and extract the Windows build, then run the included executable. No credential or internet connection is required for the complete offline path. Complete all five acts and confirm that the finale reports a playthrough archive path. For source testing, use Ren'Py 8.5.3 and follow README.md. Live GPT-5.6 Luna choices and GPT Image 1 Mini generation require an authorized external Sogang Gateway credential and the separately started local proxy; credentials are intentionally not included.
 ```
 
-## Final verification
+## Devpost final verification
 
-- [ ] `[USER]` Add all team members and confirm they accepted.
-- [ ] `[USER]` Select the best matching category shown by Devpost.
-- [ ] `[USER]` Confirm project name and elevator pitch.
-- [ ] `[USER]` Preview Markdown formatting and media.
-- [ ] `[USER]` Confirm the submission is submitted and not saved as a draft.
+- [x] Individual submission; no team-member invitations are required.
+- [ ] `[USER]` Enter project name and elevator pitch.
+- [ ] `[USER]` Paste and personally edit the About the Project text from `DEVPOST_SUBMISSION.md`.
+- [ ] `[USER]` Enter Built With tags.
+- [ ] `[USER]` Add gallery images.
+- [ ] `[USER]` Select the best matching category.
+- [ ] `[USER]` Add the repository, build, video, and Session ID.
+- [ ] `[USER]` Preview all Markdown and media.
+- [ ] `[USER]` Confirm the entry is submitted, not saved as a draft.

@@ -27,7 +27,7 @@ The repository contains soundtrack metadata and checks whether each referenced f
 
 ## Built with
 
-- Ren'Py 8.4.1
+- Ren'Py 8.5.3 (Lint passed on July 21, 2026)
 - Python embedded in Ren'Py
 - Ren'Py Screen Language
 - GPT-5.6 through Codex for development assistance
@@ -44,8 +44,8 @@ Codex also implemented the later hybrid runtime integration: a local key-holding
 
 ## Requirements
 
-- Windows, macOS, or Linux supported by Ren'Py 8.4.1
-- Ren'Py SDK 8.4.1 or a compatible newer 8.x release
+- Windows, macOS, or Linux supported by Ren'Py 8.5.3
+- Ren'Py SDK 8.5.3 for the verified development path
 - No credential is required for the offline fallback
 - An authorized Sogang Gateway key and internet connection are required for live choices and illustration generation
 
@@ -53,28 +53,27 @@ Codex also implemented the later hybrid runtime integration: a local key-holding
 
 ### Install the Ren'Py SDK on Windows
 
-Ren'Py is not installed through `pip`, and `renpy.exe` is not part of this repository. It is included in the extracted Ren'Py SDK. This project was developed for Ren'Py 8.4.1, so use that version for the first validation even if a newer release exists.
+Ren'Py is not installed through `pip`, and `renpy.exe` is not part of this repository. It is included in the extracted Ren'Py SDK. This project has been linted and launched successfully with Ren'Py 8.5.3.
 
-1. Open the official [Ren'Py 8.4.1 release page](https://www.renpy.org/release/8.4.1).
+1. Open the official [Ren'Py download page](https://www.renpy.org/latest.html) and obtain Ren'Py 8.5.3.
 2. Under the main downloads, select **Download SDK 7z.exe** for Windows. The ZIP SDK also works, but the self-extracting `7z.exe` is simpler.
 3. After the download completes, open the downloaded file. Its name will resemble:
 
    ```text
-   renpy-8.4.1-sdk.7z.exe
+   renpy-8.5.3-sdk.7z.exe
    ```
 
 4. When asked where to extract it, use a short writable path such as:
 
    ```text
-   C:\Tools\RenPy
+   <your tools directory>
    ```
 
    Avoid extracting it into `Program Files`, the game repository, or a deeply nested OneDrive folder.
 5. After extraction, open the created SDK directory. Depending on the archive name, the path will resemble one of these:
 
    ```text
-   C:\Tools\RenPy\renpy-8.4.1-sdk\renpy.exe
-   C:\Tools\RenPy\renpy-8.4.1\renpy.exe
+   <your tools directory>\renpy-8.5.3-sdk\renpy.exe
    ```
 
 6. Double-click `renpy.exe`. This opens the Ren'Py Launcher; it does not directly open this game yet.
@@ -90,9 +89,7 @@ renpy.exe
 
 or run this in PowerShell after replacing the search root with the directory where you usually install tools:
 
-```powershell
-Get-ChildItem C:\Tools -Filter renpy.exe -File -Recurse -ErrorAction SilentlyContinue
-```
+Use File Explorer to search your chosen SDK extraction directory for `renpy.exe`.
 
 Do not download the Ren'Py source-code archive for this task. The source archive does not provide the ready-to-run Windows Launcher expected by this guide.
 
@@ -101,13 +98,9 @@ Do not download the Ren'Py source-code archive for this task. The source archive
 Use this path first. It makes no external model or image request.
 
 1. Complete the SDK installation above.
-2. Run `renpy.exe` from the extracted SDK folder, for example `C:\Tools\RenPy\renpy-8.4.1-sdk\renpy.exe`.
+2. Run `renpy.exe` from the extracted Ren'Py 8.5.3 SDK folder.
 3. In the Ren'Py Launcher, open **Preferences**.
-4. Set **Projects Directory** to the directory that contains this repository, not to the `game` subdirectory. For the current workspace that parent directory is:
-
-   ```text
-   C:\Users\datan\Downloads\renpy-choose-game-main
-   ```
+4. Set **Projects Directory** to the directory that contains this repository, not to the repository itself or its `game` subdirectory.
 
 5. Return to the launcher. Select **You Can Be Anything** or the project folder name shown by Ren'Py.
 6. Select **Lint** first. Fix any error reported by the Ren'Py Launcher before recording or building.
@@ -133,8 +126,8 @@ Do not select `game/` itself as the projects directory.
 Only use this path when you intentionally want model requests. In a separate PowerShell window, change to the repository root and start the local proxy with an external credential file:
 
    ```powershell
-   cd C:\Users\datan\Downloads\renpy-choose-game-main\renpy-choose-game-main
-   python scripts/story_api_server.py --key-file "C:\path\outside\the\repository\credential.txt"
+   cd <repository directory>
+   python scripts/story_api_server.py --key-file "<credential file outside the repository>"
    ```
 
 Alternatively set `SOGANG_API_KEY` and omit `--key-file`. Never copy a key into this repository. Keep the proxy terminal open, then launch the game. The overlay reports whether choices came from GPT-5.6 Luna or the offline generator.
@@ -243,10 +236,10 @@ git commit -m "Prepare You Can Be Anything submission"
 git branch -M main
 ```
 
-Create an empty GitHub repository and connect it:
+The submission repository is `https://github.com/Kongdataif/you-can-be-anything`. If `origin` is not already configured, connect it, then push:
 
 ```powershell
-git remote add origin https://github.com/YOUR_ACCOUNT/YOUR_REPOSITORY.git
+git remote add origin https://github.com/Kongdataif/you-can-be-anything.git
 git push -u origin main
 ```
 
@@ -261,13 +254,13 @@ Recommended submission order:
 5. Open the video URL in an incognito window to verify public playback.
 6. Run `/feedback` in the Codex session where most work was completed and copy the Session ID.
 7. Add the repository URL, YouTube URL, judge instructions, built-with tags, gallery images, and Session ID to Devpost.
-8. Add all team members and confirm their invitations.
+8. This is an individual submission, so no team-member invitations are required.
 9. Preview the submission and verify that it is submitted rather than saved as a draft.
 
 Suggested private judge instructions:
 
 ```text
-Install Ren'Py 8.4.1 or a compatible 8.x SDK. Set the launcher projects directory to the folder containing this repository, select the project, run Lint, and launch it. No credential is required for the complete offline path. The game automatically archives each completed cycle under the Ren'Py save directory. Live GPT-5.6 Luna choices and GPT Image 1 Mini illustration generation require an authorized Sogang Gateway key and the separately started local proxy documented in README.md.
+Install Ren'Py 8.5.3. Set the launcher projects directory to the folder containing this repository, select the project, run Lint, and launch it. No credential is required for the complete offline path. The game automatically archives each completed cycle under the Ren'Py save directory. Live GPT-5.6 Luna choices and GPT Image 1 Mini illustration generation require an authorized Sogang Gateway key and the separately started local proxy documented in README.md. Credentials are intentionally not included.
 ```
 
 ## Project structure
