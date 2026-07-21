@@ -17,7 +17,7 @@ The story progresses through origin, growth, crisis, climax, and resolution. Eve
 
 ## Current implementation
 
-The game now supports a cost-aware hybrid narrative mode. When the local story proxy is running, GPT-5.6 Luna makes one request per act through Sogang University's OpenAI-compatible API Gateway. That single response contains three choice summaries, a two-paragraph possible outcome for each branch, and 1-3 canonical story facts per branch. Only the selected outcome and its facts enter session history and the next act's prompt. If the proxy, network, or model is unavailable, a stateful procedural engine uses the same selected facts and previous scene to continue the story offline without exposing internal profile context.
+GPT-5.6 Luna is the default story engine. A live cycle uses a six-request pipeline through Sogang University's OpenAI-compatible API Gateway. The initial request creates only the first three concise choices. Each of the five selections then triggers one `/advance` request that writes two paragraphs for the chosen action, establishes 1-3 canonical facts, and returns the next three choices in the same response. The final advance returns an epilogue instead of more choices. Unselected branches never consume long-form story output. If Luna is unavailable, the game stops at an explicit decision screen; it retries Luna by default and uses the stateful procedural engine only when the player deliberately selects **Continue Offline**.
 
 After the fifth act, the player may approve a single `gpt-image-1-mini` illustration at `low` quality. The UI states the maximum cost before the request. Identical endings reuse a SHA-256-addressed local PNG cache for zero additional credits, active duplicate requests are rejected, and failed responses are never cached or automatically retried.
 
@@ -40,7 +40,7 @@ GPT-5.6 through Codex was used as a hands-on development collaborator during the
 
 Codex then modified `game/script.rpy` to register the dedicated BGM channel, preserving the existing in-game BGM toggle while preventing an unknown-channel failure when audio is added. It also replaced the machine-specific quick-start document with this portable README, documented an exact judge testing path, and prepared a truthful demo narration and submission checklist.
 
-Codex also implemented the later hybrid runtime integration: a local key-holding proxy calls GPT-5.6 Luna through Sogang University's API Gateway, validates three generated choices, and lets Ren'Py fall back to the procedural generator whenever that service is unavailable. It then implemented the optional finale illustration pipeline, including structured ending context, explicit cost confirmation, background generation, strict one-image guards, SHA-256 caching, duplicate suppression, failure handling, saved PNG display, mock tests, and a live one-image verification. This keeps the credential outside the game and repository while making GPT-5.6 part of the playable experience.
+Codex also implemented the later hybrid runtime integration: a local key-holding proxy calls GPT-5.6 Luna through Sogang University's API Gateway and validates three generated choices. Luna is the default; a failed connection opens an explicit retry screen instead of silently changing the story engine. The procedural generator runs only after the player selects **Continue Offline**. Codex then implemented the optional finale illustration pipeline, including structured ending context, explicit cost confirmation, background generation, strict one-image guards, SHA-256 caching, duplicate suppression, failure handling, saved PNG display, mock tests, and a live one-image verification. This keeps the credential outside the game and repository while making GPT-5.6 the primary playable experience.
 
 ## Requirements
 
@@ -105,7 +105,7 @@ Use this path first. It makes no external model or image request.
 5. Return to the launcher. Select **You Can Be Anything** or the project folder name shown by Ren'Py.
 6. Select **Lint** first. Fix any error reported by the Ren'Py Launcher before recording or building.
 7. Select **Launch Project**.
-8. Do not start `story_api_server.py`. The game will show `Choices: offline generator` and complete the full cycle without API cost.
+8. Do not start `story_api_server.py`. At the Luna connection screen, explicitly select **Continue Offline**. The overlay will show `Choices: offline generator (player selected)`, and the complete cycle will proceed without API cost.
 9. Finish all five acts and confirm that the finale reports a playthrough archive path.
 
 The directory selected in Ren'Py must have this shape:
@@ -136,7 +136,7 @@ Finale illustration generation is never automatic. It requires a separate confir
 
 ### Live AI troubleshooting
 
-- `Choices: offline generator` means the game could not reach the local proxy and used the no-cost fallback. `Choices: AI | gpt-5.6-luna` confirms the live choice path.
+- `Choices: AI | gpt-5.6-luna` confirms the default live path. `Choices: GPT-5.6 Luna unavailable` opens a retry decision instead of silently falling back. `Choices: offline generator (player selected)` appears only after explicit offline consent.
 - Before approving an illustration, verify that the proxy terminal reports that it is listening on `127.0.0.1:8765`.
 - The illustration worker performs a no-cost local health check before sending an image request. If the proxy is absent, the finale shows a recoverable message instead of crashing.
 - A connection-refused message means no request reached the proxy. A timeout or provider error is different: inspect the proxy log before retrying because the upstream service may have received the request.
@@ -221,7 +221,7 @@ python scripts/story_api_server.py --image-smoke-test --mock-images
 
 The suite verifies mock file creation, cache reuse, zero cached cost, failed-request cleanup, in-flight duplicate rejection, and the `/illustration` HTTP route. Do not run a live image smoke test casually: deleting or changing the cached sample context can cause a new 8-credit request.
 
-The choice-generation mock also verifies that one request contains `opening_sentence`, `last_scene`, selected `previous_choices`, and `story_facts`; requires exactly two narrative paragraphs and 1-3 facts per branch; and uses a bounded `max_output_tokens` value of 3200. This design keeps the runtime at one text request per act rather than adding a second request after every selection.
+The choice-generation mocks verify the complete six-request protocol without contacting the API: one compact initial `/choices` request, five selection-driven `/advance` requests, two paragraphs and 1-3 facts for only the selected action, three next choices for non-final acts, and an epilogue with no next choices for the final act. Token bounds are 1000 for the initial choices and 2200 for each advance.
 
 ## Build a judge-ready game package
 

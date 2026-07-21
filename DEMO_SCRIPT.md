@@ -46,7 +46,7 @@ This recording intentionally demonstrates one new live illustration request. Bud
 
 **Say:**
 
-> The story follows origin, growth, crisis, climax, and resolution. Each act offers three contextual choices, then immediately plays the scene and consequence created by my decision before the next act begins. That scene is also carried into the final story. GPT-5.6 Luna can generate the choices through a secure local proxy, while a procedural fallback keeps the complete experience available offline.
+> The story follows origin, growth, crisis, climax, and resolution. GPT-5.6 Luna is the default story engine. One initial request creates the first choices, and every click triggers one advance request that writes two paragraphs for only my selected action while generating the next choices. The selected scene and its facts continue into the next act and final story. A full live cycle uses six text requests, while offline mode remains available only through an explicit player choice.
 
 ### 1:05-1:30 - Finale and archive
 

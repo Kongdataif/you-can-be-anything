@@ -15,6 +15,7 @@ init python:
     renpy.music.register_channel("bgm", mixer="music", loop=True)
 
     STORY_API_URL = "http://127.0.0.1:8765/choices"
+    ADVANCE_API_URL = "http://127.0.0.1:8765/advance"
     ILLUSTRATION_API_URL = "http://127.0.0.1:8765/illustration"
     STORY_API_HEALTH_URL = "http://127.0.0.1:8765/health"
 
@@ -350,6 +351,8 @@ init python:
             self.start_sentence = ""
             self.choices = []
             self.story_facts = []
+            self.generated_epilogue = ""
+            self.offline_mode = False
             self.soundtrack_log = []
             self.session_seed = random.randint(1, 10_000_000)
             self.choice_rng = random.Random(self.session_seed)
@@ -406,9 +409,12 @@ init python:
         def generate_choices(self):
             act_data = self.get_act_data()
             flavor = GENRE_FLAVORS[self.genre]
-            ai_choices = self._generate_ai_choices(act_data, flavor)
-            if ai_choices:
-                return ai_choices
+            return self._generate_ai_choices(act_data, flavor)
+
+        def generate_offline_choices(self):
+            """Generate local choices only after the player explicitly opts in."""
+            act_data = self.get_act_data()
+            flavor = GENRE_FLAVORS[self.genre]
             variants = []
             actions = FALLBACK_ACTIONS.get(self.genre, ["Take the risk", "Seek the truth", "Protect what matters"])
             for idx in range(3):
@@ -422,12 +428,12 @@ init python:
                 variants.append({
                     "headline": headline,
                     "detail": detail,
-                    "narrative": narrative,
-                    "impact": impact,
-                    "facts": [twist],
-                    "act_key": act_data["key"],
-                    "act_title": act_data["title"]
+                    "offline_anchor": anchor,
+                    "offline_action": action,
+                    "offline_twist": twist
                 })
+            self.ai_mode = "offline"
+            self.offline_mode = True
             return variants
 
         def _generate_ai_choices(self, act_data, flavor):
@@ -460,7 +466,7 @@ init python:
                 response = urllib.request.urlopen(request, timeout=30)
                 result = json.loads(response.read().decode("utf-8"))
                 choices = result.get("choices", [])
-                required = ("headline", "detail", "narrative", "impact")
+                required = ("headline", "detail")
                 if len(choices) != 3:
                     raise ValueError("AI response did not contain exactly three choices")
                 validated = []
@@ -469,27 +475,16 @@ init python:
                         raise ValueError("AI choice is missing a required text field")
                     clean = {
                         "headline": safe_generated_text(item["headline"], 100),
-                        "detail": safe_generated_text(item["detail"], 240),
-                        "narrative": safe_generated_text(item["narrative"], 1800),
-                        "impact": safe_generated_text(item["impact"], 300)
+                        "detail": safe_generated_text(item["detail"], 240)
                     }
-                    facts = item.get("facts")
-                    if not isinstance(facts, list) or not (1 <= len(facts) <= 3):
-                        raise ValueError("AI choice is missing its story facts")
-                    clean["facts"] = [safe_generated_text(fact, 180) for fact in facts if str(fact).strip()][:3]
-                    if not clean["facts"]:
-                        raise ValueError("AI choice contains no usable story facts")
-                    if len([part for part in clean["narrative"].split("\n\n") if part.strip()]) != 2:
-                        raise ValueError("AI choice narrative must contain two paragraphs")
-                    clean["act_key"] = act_data["key"]
-                    clean["act_title"] = act_data["title"]
                     validated.append(clean)
                 self.ai_mode = "online"
                 self.ai_model = result.get("model", "gpt-5.6-luna")
+                self.offline_mode = False
                 self.last_ai_error = None
                 return validated
             except Exception as exc:
-                self.ai_mode = "offline"
+                self.ai_mode = "unavailable"
                 self.ai_model = None
                 self.last_ai_error = str(exc)[:160]
                 return None
@@ -505,16 +500,100 @@ init python:
                 self._activate_track(track)
             return track
 
-        def commit_choice(self, choice):
-            chosen = dict(choice)
+        def advance_story(self, selection):
+            if self.offline_mode:
+                return self.generate_offline_advance(selection)
+            return self._advance_ai_story(selection)
+
+        def _advance_ai_story(self, selection):
+            act_data = self.get_act_data()
+            next_act = ACT_STRUCTURE[self.current_act_index + 1] if self.current_act_index + 1 < self.total_acts else None
+            payload = {
+                "profile": self.profile,
+                "genre": self.genre,
+                "genre_label": GENRE_FLAVORS[self.genre]["label"],
+                "opening_sentence": self.start_sentence,
+                "act": act_data,
+                "next_act": next_act,
+                "is_final": self.current_act_index == self.total_acts - 1,
+                "selected_choice": {"headline": selection.get("headline", ""), "detail": selection.get("detail", "")},
+                "last_scene": self.choices[-1].get("narrative", "") if self.choices else self.start_sentence,
+                "story_facts": list(self.story_facts),
+                "previous_choices": self.choices
+            }
+            try:
+                request = urllib.request.Request(
+                    ADVANCE_API_URL,
+                    data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST"
+                )
+                response = urllib.request.urlopen(request, timeout=45)
+                result = json.loads(response.read().decode("utf-8"))
+                scene = result.get("scene", {})
+                paragraphs = scene.get("paragraphs", [])
+                if not isinstance(paragraphs, list) or len(paragraphs) < 2:
+                    raise ValueError("AI advance response is missing two story paragraphs")
+                impact = safe_generated_text(scene.get("impact", "The selected action changes the path."), 300)
+                facts = scene.get("facts", [])
+                if not isinstance(facts, list):
+                    facts = []
+                clean_facts = [safe_generated_text(fact, 180) for fact in facts if str(fact).strip()][:3] or [impact]
+                clean_next = []
+                for item in result.get("next_choices", []):
+                    if not isinstance(item, dict) or not item.get("headline") or not item.get("detail"):
+                        raise ValueError("AI advance response contains an invalid next choice")
+                    clean_next.append({"headline": safe_generated_text(item["headline"], 100), "detail": safe_generated_text(item["detail"], 240)})
+                if self.current_act_index < self.total_acts - 1 and len(clean_next) != 3:
+                    raise ValueError("AI advance response did not contain three next choices")
+                self.ai_mode = "online"
+                self.ai_model = result.get("model", "gpt-5.6-luna")
+                self.last_ai_error = None
+                return {
+                    "paragraphs": [safe_generated_text(paragraphs[0], 1000), safe_generated_text(" ".join(paragraphs[1:]), 1000)],
+                    "impact": impact,
+                    "facts": clean_facts,
+                    "next_choices": clean_next,
+                    "epilogue": safe_generated_text(result.get("epilogue", ""), 1000)
+                }
+            except Exception as exc:
+                self.ai_mode = "unavailable"
+                self.ai_model = None
+                self.last_ai_error = str(exc)[:200]
+                return None
+
+        def generate_offline_advance(self, selection):
+            act_data = self.get_act_data()
+            anchor = selection.get("offline_anchor") or cycle_pick(GENRE_FLAVORS[self.genre]["settings"], self.current_act_index + self.session_seed)
+            action = selection.get("offline_action") or selection.get("headline", "take the chosen path")
+            twist = selection.get("offline_twist") or cycle_pick(GENRE_FLAVORS[self.genre]["twists"], self.current_act_index + self.session_seed)
+            narrative = self._craft_narrative(act_data, anchor, action, twist)
+            paragraphs = [part.strip() for part in narrative.split("\n\n") if part.strip()]
+            impact = self._craft_impact(act_data, twist)
+            self.ai_mode = "offline"
+            self.offline_mode = True
+            return {"paragraphs": paragraphs[:2], "impact": impact, "facts": [twist], "next_choices": [], "epilogue": ""}
+
+        def commit_advance(self, selection, advance):
+            chosen = dict(selection)
             chosen["act_index"] = self.current_act_index
+            chosen["act_key"] = self.get_act_data()["key"]
+            chosen["act_title"] = self.get_act_data()["title"]
+            chosen["narrative"] = "\n\n".join(advance.get("paragraphs", []))
+            chosen["impact"] = advance.get("impact", "")
+            chosen["facts"] = list(advance.get("facts", []))
             self.choices.append(chosen)
-            for fact in chosen.get("facts", []):
+            for fact in chosen["facts"]:
                 clean_fact = safe_generated_text(fact, 180)
                 if clean_fact and clean_fact not in self.story_facts:
                     self.story_facts.append(clean_fact)
             self.story_facts = self.story_facts[-12:]
             self.current_act_index += 1
+            if advance.get("epilogue"):
+                self.generated_epilogue = advance["epilogue"]
+            if self.current_act_index < self.total_acts and not advance.get("next_choices"):
+                advance["next_choices"] = self.generate_offline_choices()
+            return chosen
 
         def _build_context_phrase(self, act_data):
             pieces = []
@@ -846,13 +925,17 @@ init python:
             if self.ai_mode == "online":
                 return "Choices: AI | {}".format(self.ai_model or "gpt-5.6-luna")
             if self.ai_mode == "offline":
-                return "Choices: offline generator"
+                return "Choices: offline generator (player selected)"
+            if self.ai_mode == "unavailable":
+                return "Choices: GPT-5.6 Luna unavailable"
             return "Choices: checking AI connection"
 
         def act_choice_title(self, act_title):
             return "{} Choice".format(act_title)
 
         def _build_epilogue(self):
+            if self.generated_epilogue:
+                return self.generated_epilogue
             flavor = GENRE_FLAVORS[self.genre]
             headline = self.choices[-1]["headline"] if self.choices else "an unknown choice"
             resonance = f"A {self.profile.get('style', 'layered')} sensibility shapes the final moment."
@@ -961,21 +1044,40 @@ label start:
 
     show screen story_overlay
 
+    $ choices = story_state.generate_choices()
+    while choices is None:
+        $ ai_decision = renpy.call_screen("ai_connection_screen", error=story_state.last_ai_error)
+        if ai_decision == "retry":
+            $ choices = story_state.generate_choices()
+        elif ai_decision == "offline":
+            $ choices = story_state.generate_offline_choices()
+        else:
+            return
+
     while story_state.current_act_index < story_state.total_acts:
         $ story_state.begin_act()
         $ act_data = story_state.get_act_data()
         $ act_intro = story_state.build_act_intro()
         narrator "[act_intro]"
-        $ choices = story_state.generate_choices()
         $ selection = renpy.call_screen("act_choice_screen", act_title=act_data["title"], act_intro=act_intro, choices=choices)
         if selection is None:
             $ selection = choices[0]
-        $ story_state.commit_choice(selection)
-        $ selected_paragraphs = story_state.narrative_paragraphs(selection)
+        $ advance = story_state.advance_story(selection)
+        while advance is None:
+            $ ai_decision = renpy.call_screen("ai_connection_screen", error=story_state.last_ai_error)
+            if ai_decision == "retry":
+                $ advance = story_state.advance_story(selection)
+            elif ai_decision == "offline":
+                $ advance = story_state.generate_offline_advance(selection)
+            else:
+                return
+        $ committed_choice = story_state.commit_advance(selection, advance)
+        $ selected_paragraphs = story_state.narrative_paragraphs(committed_choice)
         $ selected_paragraph_one = selected_paragraphs[0]
         $ selected_paragraph_two = selected_paragraphs[1]
         narrator "[selected_paragraph_one]"
         narrator "[selected_paragraph_two]"
+        $ choices = advance.get("next_choices", [])
 
     hide screen story_overlay
     $ renpy.music.stop(channel="bgm")
@@ -1003,6 +1105,8 @@ screen story_overlay():
                 text story_state.ai_status_label() size 20 color "#8fe3a5"
             elif story_state.ai_mode == "offline":
                 text story_state.ai_status_label() size 20 color "#ffd27f"
+            elif story_state.ai_mode == "unavailable":
+                text story_state.ai_status_label() size 20 color "#ff9f9f"
             else:
                 text story_state.ai_status_label() size 20
         frame:
@@ -1043,6 +1147,30 @@ screen act_choice_screen(act_title, act_intro, choices):
                 for choice in choices:
                     textbutton choice["headline"] action Return(choice) text_size 28 xfill True
                     text choice["detail"] size 22 substitute False
+
+
+screen ai_connection_screen(error):
+    tag menu
+    modal True
+    add Solid("#000c")
+    frame:
+        xalign 0.5
+        yalign 0.5
+        xmaximum 900
+        padding (40, 32)
+        has vbox
+        spacing 22
+        text "GPT-5.6 Luna is the default story engine" size 38 xalign 0.5
+        text "The game could not reach the live Luna path. No offline choices will be generated unless you explicitly select Continue Offline." size 24
+        if error:
+            text error size 18 color "#ffb0b0" substitute False
+        text "Start or check the local proxy, then retry. The health check address is http://127.0.0.1:8765/health" size 20
+        hbox:
+            spacing 24
+            xalign 0.5
+            textbutton "Retry GPT-5.6 Luna" action Return("retry")
+            textbutton "Continue Offline" action Return("offline")
+            textbutton "Main Menu" action Return("menu")
 
 
 screen finale_screen(story, illustration_prompt, soundtrack, profile):

@@ -10,7 +10,7 @@
 
 `StorySession` stores the protagonist profile, genre, opening sentence, act index, generated choices, selected scenes, soundtrack state, finale data, illustration state, and archive location. Five acts cover origin, growth, crisis, climax, and resolution. Genre metadata supplies settings, actions, twists, emotional beats, colors, and imagery.
 
-For each act, the game makes one GPT-5.6 Luna request when the proxy is available. The request includes the opening sentence, selected choice history, last scene, and canonical story facts. Its response contains three choices; each branch includes a summary, exactly two narrative paragraphs, an impact, and 1-3 new facts. Only the selected branch is displayed, stored, and passed into the next act. Responses are validated before use. A deterministic procedural generator follows the same two-paragraph and selected-facts structure whenever the proxy, network, credential, or model is unavailable.
+The live protocol uses six GPT-5.6 Luna requests per completed cycle. `/choices` first creates three concise choices from the profile, genre, and opening sentence. Every selection then calls `/advance` with the selected choice, last scene, accumulated facts, and previous selected history. That response contains exactly two paragraphs and 1-3 facts for the chosen action only, plus three choices for the next act. The fifth advance returns an epilogue and no further choices. If Luna is unavailable, the game presents **Retry GPT-5.6 Luna**, **Continue Offline**, and **Main Menu**; the deterministic generator is never selected silently.
 
 ## Finale and persistence
 

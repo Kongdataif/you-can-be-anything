@@ -31,7 +31,7 @@ The story progresses through five acts—Origin, Growth, Crisis, Climax, and Res
 
 Every completed playthrough is automatically archived with its profile, opening sentence, five selected decisions, finale, illustration prompt, and soundtrack plan. The player can also explicitly approve one low-cost protagonist illustration. If an identical ending has already been illustrated, the game reuses its cached image without making another image request.
 
-The game includes a complete offline path. If the AI service is unavailable, a procedural narrative engine immediately takes over, so the story can still reach its ending without credentials or an internet connection.
+The game includes a complete offline path, but GPT-5.6 Luna is the default story engine. If Luna is unavailable, the game asks the player to retry, continue offline, or return to the menu; it never changes engines silently.
 
 ## How I built it
 
@@ -39,7 +39,7 @@ I built the game with Ren'Py 8.5.3, Ren'Py Screen Language, and embedded Python.
 
 The narrative architecture separates a reusable five-act structure from genre-specific settings, actions, twists, emotional beats, colors, and imagery. A `StorySession` object tracks the player profile, current act, generated choices, selected scenes, soundtrack state, finale data, illustration state, and playthrough archive.
 
-For live AI choices, the Ren'Py client sends structured story context to a local Python proxy. The proxy keeps the credential outside the game and repository, calls GPT-5.6 Luna through Sogang University's OpenAI-compatible API Gateway, validates the returned JSON, and sends exactly three choices back to Ren'Py.
+For the live story, the Ren'Py client sends structured context to a local Python proxy. The proxy keeps the credential outside the game and repository. An initial GPT-5.6 Luna request creates three choices; each of five selection-driven advance requests generates two paragraphs for only the chosen action, canonical facts, and the next choices. This six-request pipeline makes every click visibly change the generated story without spending long-form output on unselected branches.
 
 For finale art, the proxy uses GPT Image 1 Mini with one image and low quality enforced by code. Image generation is never automatic: the player sees a maximum-cost confirmation first. Requests are addressed by a SHA-256 hash, identical endings reuse a local cache, simultaneous duplicates are rejected, failures are not cached, and failed requests are not automatically retried.
 
@@ -53,7 +53,7 @@ Codex then helped convert the interface and narrative flow to English, implement
 
 Codex also created API-free mock tests for cache reuse, failed-request cleanup, duplicate rejection, and the illustration HTTP endpoint. I used those tests alongside Ren'Py 8.5.3 Lint and manual gameplay testing.
 
-GPT-5.6 Luna is also part of the optional runtime experience: when the local proxy is available, it generates the three choices shown in each act. When it is unavailable, the game transparently returns to its offline engine.
+GPT-5.6 Luna is the default runtime story engine. When the local proxy is available, it generates the three choices and two-paragraph branch outcomes shown in each act. When it is unavailable, the game presents an explicit retry or offline choice instead of silently changing engines.
 
 ## Challenges I ran into
 
