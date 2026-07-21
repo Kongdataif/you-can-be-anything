@@ -18,6 +18,7 @@ init python:
     ADVANCE_API_URL = "http://127.0.0.1:8765/advance"
     ILLUSTRATION_API_URL = "http://127.0.0.1:8765/illustration"
     STORY_API_HEALTH_URL = "http://127.0.0.1:8765/health"
+    STORY_SERVER_BUILD = "luna-advance-v4"
 
     def cycle_pick(items, index):
         if not items:
@@ -413,18 +414,22 @@ init python:
 
         def generate_offline_choices(self):
             """Generate local choices only after the player explicitly opts in."""
-            act_data = self.get_act_data()
+            variants = self._offline_choice_variants(self.current_act_index)
+            self.ai_mode = "offline"
+            self.offline_mode = True
+            return variants
+
+        def _offline_choice_variants(self, act_index):
+            act_data = ACT_STRUCTURE[min(act_index, self.total_acts - 1)]
             flavor = GENRE_FLAVORS[self.genre]
             variants = []
             actions = FALLBACK_ACTIONS.get(self.genre, ["Take the risk", "Seek the truth", "Protect what matters"])
             for idx in range(3):
-                anchor = cycle_pick(flavor["settings"], self.current_act_index + idx + self.session_seed)
-                action = cycle_pick(actions, self.current_act_index + idx + self.session_seed)
-                twist = cycle_pick(flavor["twists"], self.current_act_index * 5 + idx * 2 + self.session_seed)
+                anchor = cycle_pick(flavor["settings"], act_index + idx + self.session_seed)
+                action = cycle_pick(actions, act_index + idx + self.session_seed)
+                twist = cycle_pick(flavor["twists"], act_index * 5 + idx * 2 + self.session_seed)
                 headline = f"{action} at {anchor}"
                 detail = f"Choose this path as {twist}; the decision will shape what happens next."
-                narrative = self._craft_narrative(act_data, anchor, action, twist)
-                impact = self._craft_impact(act_data, twist)
                 variants.append({
                     "headline": headline,
                     "detail": detail,
@@ -432,8 +437,6 @@ init python:
                     "offline_action": action,
                     "offline_twist": twist
                 })
-            self.ai_mode = "offline"
-            self.offline_mode = True
             return variants
 
         def _generate_ai_choices(self, act_data, flavor):
@@ -465,6 +468,8 @@ init python:
                 )
                 response = urllib.request.urlopen(request, timeout=30)
                 result = json.loads(response.read().decode("utf-8"))
+                if result.get("kind") != "choices" or result.get("server_build") != STORY_SERVER_BUILD:
+                    raise ValueError("The local proxy is not running the required Luna story build")
                 choices = result.get("choices", [])
                 required = ("headline", "detail")
                 if len(choices) != 3:
@@ -530,22 +535,71 @@ init python:
                 )
                 response = urllib.request.urlopen(request, timeout=45)
                 result = json.loads(response.read().decode("utf-8"))
+                if result.get("kind") != "advance" or result.get("server_build") != STORY_SERVER_BUILD:
+                    raise ValueError("The local proxy returned the wrong response contract; restart it once")
                 scene = result.get("scene", {})
+                # Ren'Py wraps JSON collections in RevertableDict and
+                # RevertableList. Use their mapping/sequence behaviour rather
+                # than rejecting them for not being exact built-in types.
+                if not hasattr(scene, "get"):
+                    scene = {}
+                if not scene:
+                    scene = {
+                        "paragraphs": result.get("paragraphs", []),
+                        "narrative": result.get("narrative") or result.get("story") or "",
+                        "impact": result.get("impact", ""),
+                        "facts": result.get("facts", [])
+                    }
+                renpy.log("Luna advance response keys: {} | scene keys: {}".format(sorted(result.keys()), sorted(scene.keys())))
+                impact = safe_generated_text(scene.get("impact", ""), 300)
                 paragraphs = scene.get("paragraphs", [])
-                if not isinstance(paragraphs, list) or len(paragraphs) < 2:
-                    raise ValueError("AI advance response is missing two story paragraphs")
-                impact = safe_generated_text(scene.get("impact", "The selected action changes the path."), 300)
+                if isinstance(paragraphs, str):
+                    narrative = safe_generated_text(scene.get("narrative", ""), 2000)
+                    paragraphs = [part.strip() for part in narrative.split("\n\n") if part.strip()]
+                else:
+                    try:
+                        paragraphs = [str(part).strip() for part in paragraphs if str(part).strip()]
+                    except TypeError:
+                        paragraphs = []
+                if not paragraphs:
+                    narrative = safe_generated_text(scene.get("narrative", ""), 2000)
+                    paragraphs = [part.strip() for part in narrative.split("\n\n") if part.strip()]
+                if not paragraphs:
+                    raise ValueError("Luna returned no story content for the selected choice")
+                if len(paragraphs) < 2:
+                    if impact:
+                        paragraphs.append(impact)
+                    else:
+                        raise ValueError("Luna returned only one story paragraph and no consequence")
+                elif len(paragraphs) > 2:
+                    paragraphs = [paragraphs[0], " ".join(paragraphs[1:])]
+                if not impact:
+                    impact = safe_generated_text(paragraphs[1], 300)
                 facts = scene.get("facts", [])
-                if not isinstance(facts, list):
+                if isinstance(facts, str):
                     facts = []
-                clean_facts = [safe_generated_text(fact, 180) for fact in facts if str(fact).strip()][:3] or [impact]
+                try:
+                    clean_facts = [safe_generated_text(fact, 180) for fact in facts if str(fact).strip()][:3] or [impact]
+                except TypeError:
+                    clean_facts = [impact]
                 clean_next = []
-                for item in result.get("next_choices", []):
-                    if not isinstance(item, dict) or not item.get("headline") or not item.get("detail"):
-                        raise ValueError("AI advance response contains an invalid next choice")
-                    clean_next.append({"headline": safe_generated_text(item["headline"], 100), "detail": safe_generated_text(item["detail"], 240)})
+                raw_next = result.get("next_choices")
+                if raw_next is None:
+                    raw_next = result.get("choices", [])
+                if isinstance(raw_next, str):
+                    raw_next = []
+                for item in raw_next:
+                    if not hasattr(item, "get"):
+                        continue
+                    headline = item.get("headline") or item.get("title") or item.get("choice")
+                    detail = item.get("detail") or item.get("description") or item.get("stakes")
+                    if not headline or not detail:
+                        continue
+                    clean_next.append({"headline": safe_generated_text(headline, 100), "detail": safe_generated_text(detail, 240)})
+                    if len(clean_next) == 3:
+                        break
                 if self.current_act_index < self.total_acts - 1 and len(clean_next) != 3:
-                    raise ValueError("AI advance response did not contain three next choices")
+                    raise ValueError("Luna did not return three usable next choices")
                 self.ai_mode = "online"
                 self.ai_model = result.get("model", "gpt-5.6-luna")
                 self.last_ai_error = None
@@ -591,7 +645,10 @@ init python:
             self.current_act_index += 1
             if advance.get("epilogue"):
                 self.generated_epilogue = advance["epilogue"]
-            if self.current_act_index < self.total_acts and not advance.get("next_choices"):
+            # Only the explicitly selected offline mode may synthesize local
+            # choices. An online Luna response must never be disguised with
+            # template choices after validation.
+            if self.offline_mode and self.current_act_index < self.total_acts and not advance.get("next_choices"):
                 advance["next_choices"] = self.generate_offline_choices()
             return chosen
 
@@ -644,8 +701,10 @@ init python:
             paragraphs = [part.strip() for part in narrative.split("\n\n") if part.strip()]
             if len(paragraphs) >= 2:
                 return [paragraphs[0], "\n\n".join(paragraphs[1:])]
-            impact = safe_generated_text(choice.get("impact", "Its consequence carries into the next act."), 400)
-            return [narrative or "The decision changes the path.", impact]
+            impact = safe_generated_text(choice.get("impact", ""), 400)
+            if narrative and impact:
+                return [narrative, impact]
+            raise ValueError("The selected choice has no complete two-paragraph story")
 
         def _craft_impact(self, act_data, twist):
             return f"Consequence: {twist.capitalize()}. The next act begins with that change still in motion."
@@ -1161,7 +1220,7 @@ screen ai_connection_screen(error):
         has vbox
         spacing 22
         text "GPT-5.6 Luna is the default story engine" size 38 xalign 0.5
-        text "The game could not reach the live Luna path. No offline choices will be generated unless you explicitly select Continue Offline." size 24
+        text "The game could not complete the live Luna request. No offline choices will be generated unless you explicitly select Continue Offline." size 24
         if error:
             text error size 18 color "#ffb0b0" substitute False
         text "Start or check the local proxy, then retry. The health check address is http://127.0.0.1:8765/health" size 20

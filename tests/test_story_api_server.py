@@ -128,9 +128,74 @@ class IllustrationTests(unittest.TestCase):
                 result = json.loads(response.read().decode("utf-8"))
             self.assertTrue(result["ok"])
             self.assertEqual(result["choice_schema_version"], 3)
+            self.assertEqual(result["server_build"], api.SERVER_BUILD_ID)
             self.assertEqual(result["image_model"], api.DEFAULT_IMAGE_MODEL)
             self.assertEqual(result["image_credits"], 8)
             self.assertEqual(list(self.cache.glob("*.png")), [])
+        finally:
+            server.shutdown()
+            server.server_close()
+            worker.join(5)
+
+    def test_http_choices_then_advance_contract_without_live_api(self):
+        choices = [
+            {"headline": f"Choice {index + 1}", "detail": "A concrete action with a risk."}
+            for index in range(3)
+        ]
+        provider_results = [
+            {"output_text": json.dumps({"choices": choices})},
+            {"output_text": json.dumps({
+                "scene": {
+                    "paragraphs": [
+                        "Mina follows the chosen clue into the flooded archive.",
+                        "The recovered ledger proves the witness lied and exposes a new suspect.",
+                    ],
+                    "impact": "The false testimony is now established.",
+                    "facts": ["The witness falsified the testimony."],
+                },
+                "next_choices": choices,
+                "epilogue": "",
+            })},
+        ]
+        api.StoryHandler.key = "unused"
+        api.StoryHandler.model = api.DEFAULT_MODEL
+        api.StoryHandler.gateway = api.DEFAULT_GATEWAY
+        api.StoryHandler.cache_dir = self.cache
+        server = ThreadingHTTPServer(("127.0.0.1", 0), api.StoryHandler)
+        worker = threading.Thread(target=server.serve_forever)
+        worker.start()
+        try:
+            with patch.object(api, "gateway_request", side_effect=provider_results) as gateway:
+                base = f"http://127.0.0.1:{server.server_port}"
+                def post(path, payload):
+                    request = urllib.request.Request(
+                        base + path,
+                        data=json.dumps(payload).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(request, timeout=5) as response:
+                        return json.loads(response.read().decode("utf-8"))
+
+                initial = post("/choices", {"opening_sentence": "The lake knew her name."})
+                advance = post("/advance", {
+                    "selected_choice": initial["choices"][1],
+                    "is_final": False,
+                })
+                cached_advance = post("/advance", {
+                    "selected_choice": initial["choices"][1],
+                    "is_final": False,
+                })
+
+            self.assertEqual(gateway.call_count, 2)
+            self.assertEqual(initial["kind"], "choices")
+            self.assertEqual(advance["kind"], "advance")
+            self.assertEqual(advance["server_build"], api.SERVER_BUILD_ID)
+            self.assertEqual(len(advance["scene"]["paragraphs"]), 2)
+            self.assertEqual(len(advance["next_choices"]), 3)
+            self.assertFalse(advance["cached"])
+            self.assertTrue(cached_advance["cached"])
+            self.assertEqual(cached_advance["request_id"], advance["request_id"])
         finally:
             server.shutdown()
             server.server_close()

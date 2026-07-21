@@ -21,6 +21,7 @@ DEFAULT_GATEWAY = "https://factchat-cloud.mindlogic.ai/v1/gateway"
 DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_IMAGE_MODEL = "gpt-image-1-mini"
 CHOICE_SCHEMA_VERSION = 3
+SERVER_BUILD_ID = "luna-advance-v4"
 IMAGE_CREDITS = {"gpt-image-1-mini": 8}
 MOCK_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -32,6 +33,14 @@ _active_image_requests: set[str] = set()
 def default_cache_dir() -> Path:
     root = os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
     return Path(root) / "YouCanBeAnything" / "generated"
+
+
+def story_request_digest(path: str, context: dict[str, Any], model: str) -> str:
+    canonical = json.dumps(
+        {"path": path, "context": context, "model": model, "schema": CHOICE_SCHEMA_VERSION},
+        ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def load_key(key_file: str | None = None) -> str:
@@ -143,7 +152,7 @@ def generate_choices(context: dict[str, Any], key: str, model: str, gateway: str
         if not isinstance(choice, dict) or not all(isinstance(choice.get(f), str) and choice[f].strip() for f in ("headline", "detail")):
             raise ValueError("A generated choice is missing a required field")
         normalized.append({"headline": choice["headline"].strip(), "detail": choice["detail"].strip()})
-    return {"model": model, "schema_version": CHOICE_SCHEMA_VERSION, "choices": normalized}
+    return {"kind": "choices", "server_build": SERVER_BUILD_ID, "model": model, "schema_version": CHOICE_SCHEMA_VERSION, "choices": normalized}
 
 
 def advance_story(context: dict[str, Any], key: str, model: str, gateway: str) -> dict[str, Any]:
@@ -184,7 +193,7 @@ def advance_story(context: dict[str, Any], key: str, model: str, gateway: str) -
     epilogue = str(result.get("epilogue", "")).strip()
     if is_final and not epilogue:
         epilogue = impact
-    return {"model": model, "schema_version": CHOICE_SCHEMA_VERSION, "scene": {"paragraphs": paragraphs, "impact": impact, "facts": facts}, "next_choices": cleaned_next, "epilogue": epilogue}
+    return {"kind": "advance", "server_build": SERVER_BUILD_ID, "model": model, "schema_version": CHOICE_SCHEMA_VERSION, "scene": {"paragraphs": paragraphs, "impact": impact, "facts": facts}, "next_choices": cleaned_next, "epilogue": epilogue}
 
 
 def normalize_illustration_context(context: dict[str, Any]) -> dict[str, Any]:
@@ -305,7 +314,7 @@ class StoryHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/health":
-            self._send(200, {"ok": True, "model": self.model, "choice_schema_version": CHOICE_SCHEMA_VERSION, "image_model": self.image_model, "image_credits": IMAGE_CREDITS[self.image_model], "mock_images": self.mock_images})
+            self._send(200, {"ok": True, "server_build": SERVER_BUILD_ID, "model": self.model, "choice_schema_version": CHOICE_SCHEMA_VERSION, "image_model": self.image_model, "image_credits": IMAGE_CREDITS[self.image_model], "mock_images": self.mock_images})
         else:
             self._send(404, {"error": "not_found"})
 
@@ -318,10 +327,21 @@ class StoryHandler(BaseHTTPRequestHandler):
             context = json.loads(self.rfile.read(length).decode("utf-8"))
             if not isinstance(context, dict):
                 raise ValueError("Request body must be a JSON object")
-            if self.path == "/choices":
-                result = generate_choices(context, self.key, self.model, self.gateway)
-            elif self.path == "/advance":
-                result = advance_story(context, self.key, self.model, self.gateway)
+            if self.path in {"/choices", "/advance"}:
+                request_id = story_request_digest(self.path, context, self.model)
+                story_cache = self.cache_dir / "story_responses"
+                cache_file = story_cache / f"{request_id}.json"
+                if cache_file.is_file():
+                    result = json.loads(cache_file.read_text(encoding="utf-8"))
+                    result["cached"] = True
+                else:
+                    result = generate_choices(context, self.key, self.model, self.gateway) if self.path == "/choices" else advance_story(context, self.key, self.model, self.gateway)
+                    result["request_id"] = request_id
+                    result["cached"] = False
+                    story_cache.mkdir(parents=True, exist_ok=True)
+                    temporary = cache_file.with_suffix(".tmp")
+                    temporary.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+                    temporary.replace(cache_file)
             else:
                 result = generate_illustration(context, self.key, self.image_model, self.image_quality, self.gateway, self.cache_dir, self.mock_images)
             self._send(200, result)
