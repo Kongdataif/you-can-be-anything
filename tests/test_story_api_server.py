@@ -109,6 +109,31 @@ class IllustrationTests(unittest.TestCase):
             server.server_close()
             worker.join(5)
 
+    def test_health_endpoint_reports_image_budget_without_generation(self):
+        api.StoryHandler.key = "unused"
+        api.StoryHandler.model = api.DEFAULT_MODEL
+        api.StoryHandler.image_model = api.DEFAULT_IMAGE_MODEL
+        api.StoryHandler.image_quality = "low"
+        api.StoryHandler.gateway = api.DEFAULT_GATEWAY
+        api.StoryHandler.cache_dir = self.cache
+        api.StoryHandler.mock_images = True
+        server = ThreadingHTTPServer(("127.0.0.1", 0), api.StoryHandler)
+        worker = threading.Thread(target=server.serve_forever)
+        worker.start()
+        try:
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{server.server_port}/health", timeout=5
+            ) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["image_model"], api.DEFAULT_IMAGE_MODEL)
+            self.assertEqual(result["image_credits"], 8)
+            self.assertEqual(list(self.cache.glob("*.png")), [])
+        finally:
+            server.shutdown()
+            server.server_close()
+            worker.join(5)
+
 
 if __name__ == "__main__":
     unittest.main()

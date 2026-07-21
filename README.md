@@ -13,11 +13,11 @@ The player enters a protagonist name, MBTI, preferred style, current mood, and a
 - Science fiction
 - Romance fantasy
 
-The story progresses through origin, growth, crisis, climax, and resolution. Every act offers three contextual choices. The selected scenes are preserved and assembled into a finale with an act-by-act soundtrack plan. At the player's explicit request, the finale can also generate and display one protagonist illustration.
+The story progresses through origin, growth, crisis, climax, and resolution. Every act offers three contextual choices. After each selection, its narrative scene and immediate consequence are shown before the next act begins. The selected scenes are also preserved and assembled into a finale with an act-by-act soundtrack plan. At the player's explicit request, the finale can generate and display one protagonist illustration.
 
 ## Current implementation
 
-The game now supports a cost-aware hybrid narrative mode. When the local story proxy is running, GPT-5.6 Luna generates three personalized choices for each act through Sogang University's OpenAI-compatible API Gateway. If the proxy, network, or model is unavailable, the existing procedural engine takes over automatically, so the core game remains playable offline.
+The game now supports a cost-aware hybrid narrative mode. When the local story proxy is running, GPT-5.6 Luna generates three personalized choices for each act through Sogang University's OpenAI-compatible API Gateway. If the proxy, network, or model is unavailable, a player-facing procedural engine takes over automatically. Its choices describe actions and stakes without exposing internal profile context, so the core game remains presentable and playable offline.
 
 After the fifth act, the player may approve a single `gpt-image-1-mini` illustration at `low` quality. The UI states the maximum cost before the request. Identical endings reuse a SHA-256-addressed local PNG cache for zero additional credits, active duplicate requests are rejected, and failed responses are never cached or automatically retried.
 
@@ -133,6 +133,14 @@ Only use this path when you intentionally want model requests. In a separate Pow
 Alternatively set `SOGANG_API_KEY` and omit `--key-file`. Never copy a key into this repository. Keep the proxy terminal open, then launch the game. The overlay reports whether choices came from GPT-5.6 Luna or the offline generator.
 
 Finale illustration generation is never automatic. It requires a separate confirmation that states the maximum expected credit cost. For an initial gameplay check, select **Cancel** in that confirmation.
+
+### Live AI troubleshooting
+
+- `Choices: offline generator` means the game could not reach the local proxy and used the no-cost fallback. `Choices: AI | gpt-5.6-luna` confirms the live choice path.
+- Before approving an illustration, verify that the proxy terminal reports that it is listening on `127.0.0.1:8765`.
+- The illustration worker performs a no-cost local health check before sending an image request. If the proxy is absent, the finale shows a recoverable message instead of crashing.
+- A connection-refused message means no request reached the proxy. A timeout or provider error is different: inspect the proxy log before retrying because the upstream service may have received the request.
+- Failed requests are never retried automatically. The manual retry remains explicitly cost-labelled.
 
 Do not point Ren'Py at a path copied from another computer. The repository is portable and can be placed anywhere inside your own Ren'Py projects directory.
 

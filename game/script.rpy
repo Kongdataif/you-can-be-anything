@@ -16,6 +16,7 @@ init python:
 
     STORY_API_URL = "http://127.0.0.1:8765/choices"
     ILLUSTRATION_API_URL = "http://127.0.0.1:8765/illustration"
+    STORY_API_HEALTH_URL = "http://127.0.0.1:8765/health"
 
     def cycle_pick(items, index):
         if not items:
@@ -29,6 +30,10 @@ init python:
         while len(letters) < 4:
             letters.append("X")
         return "".join(letters)
+
+    def safe_generated_text(value, limit):
+        """Keep model text readable and prevent Ren'Py text-tag substitution."""
+        return str(value).strip().replace("[", "(").replace("]", ")")[:limit]
 
     LEGACY_KO_MBTI_BRIEF = {
         "I": "내향적이고 깊이 생각하는",
@@ -285,6 +290,13 @@ init python:
         }
     }
 
+    FALLBACK_ACTIONS = {
+        "mystery": ["Follow the clue", "Question the witness", "Protect the evidence"],
+        "cyberpunk": ["Breach the network", "Trust the rogue signal", "Rewrite the protocol"],
+        "sf": ["Investigate the anomaly", "Contact the unknown", "Protect the crew"],
+        "romance": ["Reveal the secret", "Defy the prophecy", "Make a promise"]
+    }
+
     SOUNDTRACK_LIBRARY = {
         "mystery": [
             {"act_key": "origin", "title": "Misty Alley Echo", "api": "Pixabay", "file": "audio/mystery_origin.ogg"},
@@ -388,7 +400,7 @@ init python:
             act_data = self.get_act_data()
             flavor = GENRE_FLAVORS[self.genre]
             beat = cycle_pick(flavor["beats"], self.current_act_index)
-            return f"{act_data['title']} — {beat.capitalize()}. {act_data['intent']}"
+            return f"{act_data['title']} - {beat.capitalize()}. {act_data['intent']}"
 
         def generate_choices(self):
             act_data = self.get_act_data()
@@ -396,15 +408,15 @@ init python:
             ai_choices = self._generate_ai_choices(act_data, flavor)
             if ai_choices:
                 return ai_choices
-            base_context = self._build_context_phrase(act_data)
             variants = []
+            actions = FALLBACK_ACTIONS.get(self.genre, ["Take the risk", "Seek the truth", "Protect what matters"])
             for idx in range(3):
                 anchor = cycle_pick(flavor["settings"], self.current_act_index + idx + self.session_seed)
-                verb = cycle_pick(flavor["verbs"], self.session_seed + idx * 3)
+                action = cycle_pick(actions, self.current_act_index + idx + self.session_seed)
                 twist = cycle_pick(flavor["twists"], self.current_act_index * 5 + idx * 2 + self.session_seed)
-                headline = f"{verb} {anchor}"
-                detail = f"{base_context} → {twist}"
-                narrative = self._craft_narrative(act_data, anchor, verb, twist)
+                headline = f"{action} at {anchor}"
+                detail = f"Choose this path as {twist}; the decision will shape what happens next."
+                narrative = self._craft_narrative(act_data, anchor, action, twist)
                 impact = self._craft_impact(act_data, twist)
                 variants.append({
                     "headline": headline,
@@ -450,7 +462,12 @@ init python:
                 for item in choices:
                     if not all(isinstance(item.get(key), str) and item[key].strip() for key in required):
                         raise ValueError("AI choice is missing a required text field")
-                    clean = {key: item[key].strip()[:1200] for key in required}
+                    clean = {
+                        "headline": safe_generated_text(item["headline"], 100),
+                        "detail": safe_generated_text(item["detail"], 240),
+                        "narrative": safe_generated_text(item["narrative"], 900),
+                        "impact": safe_generated_text(item["impact"], 300)
+                    }
                     clean["act_key"] = act_data["key"]
                     clean["act_title"] = act_data["title"]
                     validated.append(clean)
@@ -493,22 +510,22 @@ init python:
             if mood:
                 pieces.append(f"mood: {mood}")
             last_headline = self.choices[-1]["headline"] if self.choices else None
-            summary = " · ".join(pieces)
+            summary = " | ".join(pieces)
             if last_headline:
                 summary += f"; the consequences of '{last_headline}' still linger"
             return summary if summary else act_data["intent"]
 
-        def _craft_narrative(self, act_data, anchor, verb, twist):
+        def _craft_narrative(self, act_data, anchor, action, twist):
             flavor = GENRE_FLAVORS[self.genre]
             mood = self.profile.get("mood", "a complicated state of mind")
             protagonist = self.profile.get("protagonist_name", "the protagonist")
-            opening = f"In the {act_data['title'].lower()}, {protagonist} chooses to {verb.lower()} through {anchor}."
-            texture = f"The {flavor['color']} atmosphere of {flavor['label']} carries a {mood} tension."
-            payoff = f"Then {twist}."
+            opening = f"During the {act_data['title'].lower()}, {protagonist} chooses to {action.lower()} at {anchor}."
+            texture = f"The {flavor['color']} atmosphere tightens around a feeling of {mood}."
+            payoff = f"The choice changes the course of the story when {twist}."
             return " ".join([opening, texture, payoff])
 
         def _craft_impact(self, act_data, twist):
-            return f"{act_data['question']} The answer becomes clearer when {twist}."
+            return f"Consequence: {twist.capitalize()}. The next act begins with that change still in motion."
 
         def _resolve_track(self, act_key):
             catalog = SOUNDTRACK_LIBRARY.get(self.genre, [])
@@ -685,6 +702,13 @@ init python:
 
         def _illustration_worker(self, context):
             try:
+                try:
+                    health_response = urllib.request.urlopen(STORY_API_HEALTH_URL, timeout=3)
+                    health = json.loads(health_response.read().decode("utf-8"))
+                    if not health.get("ok"):
+                        raise ValueError("The local AI proxy did not report a ready state.")
+                except Exception as exc:
+                    raise RuntimeError("The local AI proxy is not running on port 8765. Start it before generating an illustration.") from exc
                 request = urllib.request.Request(
                     ILLUSTRATION_API_URL,
                     data=json.dumps(context, ensure_ascii=False).encode("utf-8"),
@@ -697,7 +721,22 @@ init python:
                     raise ValueError("The image server did not return a completed file.")
                 renpy.invoke_in_main_thread(self._finish_illustration, result, None)
             except Exception as exc:
-                renpy.invoke_in_main_thread(self._finish_illustration, None, str(exc)[:240])
+                renpy.invoke_in_main_thread(self._finish_illustration, None, self._friendly_illustration_error(exc))
+
+        def _friendly_illustration_error(self, exc):
+            message = str(exc)
+            lowered = message.lower()
+            if "10061" in message or "connection refused" in lowered or "port 8765" in lowered:
+                return "The local AI proxy is not running. Start the proxy, then return here and try again. No image request reached the proxy."
+            if "timed out" in lowered or "timeout" in lowered:
+                return "The image request timed out. Check the proxy log before deciding whether to retry, because the provider may have received it."
+            if "already running" in lowered:
+                return "An illustration request for this ending is already running. Wait for it to finish instead of submitting another request."
+            if "http error 401" in lowered or "http 401" in lowered:
+                return "The proxy rejected the credential. Check the external credential file; do not copy it into the game folder."
+            if "http error 429" in lowered or "http 429" in lowered:
+                return "The image service rate limit or credit limit was reached. Check the proxy log before retrying."
+            return "Image generation failed. Check the local proxy log before retrying. Details: {}".format(message[:160])
 
         def _finish_illustration(self, result, error):
             if error:
@@ -722,11 +761,11 @@ init python:
 
         def illustration_cost_label(self):
             if self.illustration_cached:
-                return "Cached · 0 additional credits"
+                return "Cached | 0 additional credits"
             return "Estimated request cost: {} credits".format(self.illustration_credits)
 
         def illustration_summary(self):
-            return "{} · {}".format(self.illustration_model or "gpt-image-1-mini", self.illustration_cost_label())
+            return "{} | {}".format(self.illustration_model or "gpt-image-1-mini", self.illustration_cost_label())
 
         def archive_label(self):
             if self.archive_dir:
@@ -740,7 +779,7 @@ init python:
 
         def ai_status_label(self):
             if self.ai_mode == "online":
-                return "Choices: AI · {}".format(self.ai_model or "gpt-5.6-luna")
+                return "Choices: AI | {}".format(self.ai_model or "gpt-5.6-luna")
             if self.ai_mode == "offline":
                 return "Choices: offline generator"
             return "Choices: checking AI connection"
@@ -775,12 +814,12 @@ init python:
                 else:
                     act_title = f"Act {idx + 1}"
                 status = "available" if track["available"] else "not bundled"
-                summary_lines.append(f"{act_title}: {track['title']} ({track['source_api']} · {status})")
+                summary_lines.append(f"{act_title}: {track['title']} ({track['source_api']} | {status})")
             ending_list = SOUNDTRACK_LIBRARY.get("ending", [])
             if ending_list:
                 ending_track = self._track_with_availability(ending_list[0])
                 status = "available" if ending_track["available"] else "not bundled"
-                summary_lines.append(f"Ending: {ending_track['title']} ({ending_track['source_api']} · {status})")
+                summary_lines.append(f"Ending: {ending_track['title']} ({ending_track['source_api']} | {status})")
             return "\n".join(summary_lines)
 
         def _expand_mbti(self, code):
@@ -789,7 +828,7 @@ init python:
             return ", ".join(descriptors)
 
         def overlay_summary(self):
-            return f"{self.profile.get('mbti', '----')} · {self.profile.get('style', '')} · {self.profile.get('mood', '')}".strip()
+            return f"{self.profile.get('mbti', '----')} | {self.profile.get('style', '')} | {self.profile.get('mood', '')}".strip()
 
         def profile_summary(self):
             return "Profile: {} / {} / {} / {}".format(
@@ -867,10 +906,15 @@ label start:
         if selection is None:
             $ selection = choices[0]
         $ story_state.commit_choice(selection)
+        $ selected_narrative = selection.get("narrative", "Your decision changes the path ahead.")
+        $ selected_impact = selection.get("impact", "Its consequences carry into the next act.")
+        narrator "[selected_narrative]"
+        narrator "[selected_impact]"
 
     hide screen story_overlay
     $ renpy.music.stop(channel="bgm")
     $ finale_payload = story_state.compose_finale()
+    $ decision = "menu"
     $ decision = renpy.call_screen("finale_screen", story=finale_payload["story"], illustration_prompt=finale_payload["illustration_prompt"], soundtrack=finale_payload["soundtrack"], profile=story_state.profile)
 
     if decision == "replay":
@@ -931,8 +975,8 @@ screen act_choice_screen(act_title, act_intro, choices):
                 has vbox
                 spacing 18
                 for choice in choices:
-                    textbutton choice["headline"] action Return(choice) text_size 30 xfill True
-                    text choice["detail"] size 24
+                    textbutton choice["headline"] action Return(choice) text_size 28 xfill True
+                    text choice["detail"] size 22 substitute False
 
 
 screen finale_screen(story, illustration_prompt, soundtrack, profile):
@@ -966,11 +1010,11 @@ screen finale_screen(story, illustration_prompt, soundtrack, profile):
                 background Solid("#1116")
                 text illustration_prompt size 24
             if story_state.illustration_status == "idle":
-                textbutton "Generate Protagonist Illustration — up to 8 credits":
+                textbutton "Generate Protagonist Illustration - up to 8 credits":
                     action Confirm("Generate one low-quality finale illustration? This may use up to 8 credits.", Function(story_state.start_illustration))
                     xalign 0.5
             elif story_state.illustration_status == "generating":
-                text "Generating the illustration… The button is locked to prevent duplicate requests." size 24 color "#ffd27f" xalign 0.5
+                text "Generating the illustration... The button is locked to prevent duplicate requests." size 24 color "#ffd27f" xalign 0.5
             elif story_state.illustration_status == "completed":
                 text "Generated Protagonist Illustration" size 30
                 if story_state.illustration_displayable:
@@ -979,8 +1023,8 @@ screen finale_screen(story, illustration_prompt, soundtrack, profile):
                 text story_state.archive_label() size 18 xalign 0.5
             elif story_state.illustration_status == "failed":
                 text "Illustration generation failed. It was not retried automatically." size 24 color "#ff9f9f" xalign 0.5
-                text story_state.illustration_error size 18 xalign 0.5
-                textbutton "Retry Manually — up to 8 credits":
+                text story_state.illustration_error size 18 xalign 0.5 substitute False
+                textbutton "Retry Manually - up to 8 credits":
                     action Confirm("Check whether the previous request was charged before retrying. Continue?", Function(story_state.start_illustration))
                     xalign 0.5
             text "Soundtrack" size 30

@@ -4,7 +4,7 @@ Target runtime: **2 minutes 45 seconds**. Hard limit: **under 3 minutes**.
 
 Record a horizontal 1080p screencast with clear English narration. Hide notifications, credentials, terminals containing secrets, and personal browser tabs. Rehearse once, then remove launcher loading, typing, generation waits, mistakes, and silence.
 
-Do not spend credits while recording. Use the already generated illustration or previously captured footage of the successful result. Never display the Sogang credential.
+This recording intentionally demonstrates one new live illustration request. Budget for a single request, confirm it only once, and do not retry automatically if it fails. Never display the Sogang credential.
 
 ## Recording preparation
 
@@ -15,10 +15,12 @@ Do not spend credits while recording. Use the already generated illustration or 
    When I opened my eyes, the city had forgotten my name.
    ```
 
-3. Prepare the existing finale illustration and one completed archive folder containing `story.txt`, `session.json`, and `illustration.png`.
-4. Set the game to a readable window size and close unrelated applications.
-5. On Windows, press `Win+G`, open **Capture**, enable the microphone, and start recording. `Win+Alt+R` is the usual recording shortcut.
-6. If Game Bar does not capture File Explorer or the code editor, record those shots separately or use another screen recorder, then edit the clips together.
+3. Choose a new profile, genre, opening line, or decision path so the finale differs from the earlier image test and does not resolve to the old cache entry.
+4. Start the local proxy with the authorized external credential before recording. Keep its terminal completely outside the capture area.
+5. Confirm that the proxy is ready, but do not press the illustration button during preparation.
+6. Set the game to a readable window size and close unrelated applications.
+7. On Windows, press `Win+G`, open **Capture**, enable the microphone, and start recording. `Win+Alt+R` is the usual recording shortcut.
+8. If Game Bar does not capture File Explorer or the code editor, record those shots separately or use another screen recorder, then edit the clips together.
 
 ## Shot list and English voiceover
 
@@ -44,7 +46,7 @@ Do not spend credits while recording. Use the already generated illustration or 
 
 **Say:**
 
-> The story follows origin, growth, crisis, climax, and resolution. Each act offers three contextual choices. The selected scene is stored and carried into the next act and the final story. GPT-5.6 Luna can generate these choices through a secure local proxy, while a procedural fallback keeps the complete experience available offline.
+> The story follows origin, growth, crisis, climax, and resolution. Each act offers three contextual choices, then immediately plays the scene and consequence created by my decision before the next act begins. That scene is also carried into the final story. GPT-5.6 Luna can generate the choices through a secure local proxy, while a procedural fallback keeps the complete experience available offline.
 
 ### 1:05-1:30 - Finale and archive
 
@@ -56,11 +58,11 @@ Do not spend credits while recording. Use the already generated illustration or 
 
 ### 1:30-1:55 - Cost-controlled illustration
 
-**Show:** Open the illustration confirmation, but select **Cancel** to avoid a new request. Cut to the already generated illustration and its archived `illustration.png`.
+**Show:** Select **Generate Protagonist Illustration**, pause on the cost confirmation, approve it once, show the locked generating state briefly, then cut the waiting time. Reveal the newly generated image and its new archive folder containing `illustration.png`.
 
 **Say:**
 
-> Illustration generation is never automatic. The player must confirm one low-quality GPT Image 1 Mini request with a stated maximum cost. For this recording I cancel the request and show the previously generated result. Identical endings reuse a SHA-256 cache, duplicate requests are blocked, and failures are not automatically retried.
+> Illustration generation is never automatic. I am explicitly approving one new low-quality GPT Image 1 Mini request with a stated maximum cost of eight credits. It runs in the background, locks the button against duplicate requests, and saves the completed image with this playthrough's story. Identical endings can later reuse the SHA-256 cache at no additional image cost, while failures are never retried automatically.
 
 ### 1:55-2:15 - Replay and offline reliability
 
@@ -95,7 +97,9 @@ Do not spend credits while recording. Use the already generated illustration or 
 - No API key, credential file, personal notification, or private account detail is visible.
 - Generation waiting time, launcher loading, typing, and silence are removed.
 - Voice is understandable at normal playback speed; use 1.1x or 1.25x only if still clear.
-- The existing image result is shown without making another paid request.
+- Exactly one intentional live illustration request is approved and shown.
+- The newly generated `illustration.png` is shown beside the same cycle's `story.txt` and `session.json`.
+- If generation fails, the failure state is recorded; do not press Retry during the recording without separately deciding to spend more credits.
 
 ## Upload to YouTube
 
