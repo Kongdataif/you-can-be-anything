@@ -349,6 +349,7 @@ init python:
             self.genre = "mystery"
             self.start_sentence = ""
             self.choices = []
+            self.story_facts = []
             self.soundtrack_log = []
             self.session_seed = random.randint(1, 10_000_000)
             self.choice_rng = random.Random(self.session_seed)
@@ -423,6 +424,7 @@ init python:
                     "detail": detail,
                     "narrative": narrative,
                     "impact": impact,
+                    "facts": [twist],
                     "act_key": act_data["key"],
                     "act_title": act_data["title"]
                 })
@@ -436,11 +438,14 @@ init python:
                 "genre_label": flavor["label"],
                 "opening_sentence": self.start_sentence,
                 "act": act_data,
+                "story_facts": list(self.story_facts),
+                "last_scene": self.choices[-1].get("narrative", "") if self.choices else self.start_sentence,
                 "previous_choices": [
                     {
                         "headline": item.get("headline", ""),
                         "narrative": item.get("narrative", ""),
-                        "impact": item.get("impact", "")
+                        "impact": item.get("impact", ""),
+                        "facts": item.get("facts", [])
                     }
                     for item in self.choices
                 ]
@@ -465,9 +470,17 @@ init python:
                     clean = {
                         "headline": safe_generated_text(item["headline"], 100),
                         "detail": safe_generated_text(item["detail"], 240),
-                        "narrative": safe_generated_text(item["narrative"], 900),
+                        "narrative": safe_generated_text(item["narrative"], 1800),
                         "impact": safe_generated_text(item["impact"], 300)
                     }
+                    facts = item.get("facts")
+                    if not isinstance(facts, list) or not (1 <= len(facts) <= 3):
+                        raise ValueError("AI choice is missing its story facts")
+                    clean["facts"] = [safe_generated_text(fact, 180) for fact in facts if str(fact).strip()][:3]
+                    if not clean["facts"]:
+                        raise ValueError("AI choice contains no usable story facts")
+                    if len([part for part in clean["narrative"].split("\n\n") if part.strip()]) != 2:
+                        raise ValueError("AI choice narrative must contain two paragraphs")
                     clean["act_key"] = act_data["key"]
                     clean["act_title"] = act_data["title"]
                     validated.append(clean)
@@ -496,6 +509,11 @@ init python:
             chosen = dict(choice)
             chosen["act_index"] = self.current_act_index
             self.choices.append(chosen)
+            for fact in chosen.get("facts", []):
+                clean_fact = safe_generated_text(fact, 180)
+                if clean_fact and clean_fact not in self.story_facts:
+                    self.story_facts.append(clean_fact)
+            self.story_facts = self.story_facts[-12:]
             self.current_act_index += 1
 
         def _build_context_phrase(self, act_data):
@@ -519,10 +537,36 @@ init python:
             flavor = GENRE_FLAVORS[self.genre]
             mood = self.profile.get("mood", "a complicated state of mind")
             protagonist = self.profile.get("protagonist_name", "the protagonist")
-            opening = f"During the {act_data['title'].lower()}, {protagonist} chooses to {action.lower()} at {anchor}."
-            texture = f"The {flavor['color']} atmosphere tightens around a feeling of {mood}."
-            payoff = f"The choice changes the course of the story when {twist}."
-            return " ".join([opening, texture, payoff])
+            if self.story_facts:
+                continuity = f"The truth that {self.story_facts[-1]} still shapes every step."
+            elif self.start_sentence:
+                continuity = f"The memory of the opening moment still follows {protagonist}: {self.start_sentence}"
+            else:
+                continuity = f"{protagonist} enters the journey with no safe path back."
+            previous = self.choices[-1].get("headline", "") if self.choices else ""
+            bridge = f"After choosing to {previous.lower()}, " if previous else "At the beginning, "
+            paragraph_one = (
+                f"{continuity} {bridge}{protagonist} decides to {action.lower()} at {anchor}. "
+                f"The {flavor['color']} atmosphere turns a feeling of {mood} into immediate tension."
+            )
+            next_index = self.current_act_index + 1
+            if next_index < self.total_acts:
+                next_hook = ACT_STRUCTURE[next_index]["intent"]
+            else:
+                next_hook = "The meaning of every earlier choice must now be decided."
+            paragraph_two = (
+                f"The action changes the situation when {twist}. {protagonist} can no longer treat that discovery as coincidence. "
+                f"The consequence points forward: {next_hook}"
+            )
+            return paragraph_one + "\n\n" + paragraph_two
+
+        def narrative_paragraphs(self, choice):
+            narrative = safe_generated_text(choice.get("narrative", ""), 1800)
+            paragraphs = [part.strip() for part in narrative.split("\n\n") if part.strip()]
+            if len(paragraphs) >= 2:
+                return [paragraphs[0], "\n\n".join(paragraphs[1:])]
+            impact = safe_generated_text(choice.get("impact", "Its consequence carries into the next act."), 400)
+            return [narrative or "The decision changes the path.", impact]
 
         def _craft_impact(self, act_data, twist):
             return f"Consequence: {twist.capitalize()}. The next act begins with that change still in motion."
@@ -573,11 +617,29 @@ init python:
             story_lines = []
             if self.start_sentence:
                 story_lines.append(self.start_sentence)
-            for choice in self.choices:
+            transitions = [
+                "That first consequence opened the path to what followed.",
+                "With the earlier discovery still unresolved, the journey deepened.",
+                "The accumulated choices now turned the conflict into a crisis.",
+                "Everything established before this moment converged on one decision."
+            ]
+            for index, choice in enumerate(self.choices):
+                if index > 0:
+                    fact = ""
+                    previous_facts = self.choices[index - 1].get("facts", [])
+                    if previous_facts:
+                        fact = previous_facts[-1]
+                    if fact:
+                        story_lines.append("Because {}, the next chapter could not begin unchanged.".format(fact))
+                    else:
+                        story_lines.append(transitions[min(index - 1, len(transitions) - 1)])
                 story_lines.append(choice["narrative"])
             epilogue = self._build_epilogue()
             story_lines.append(epilogue)
-            wrapped = [textwrap.fill(line, 72) for line in story_lines]
+            wrapped = []
+            for line in story_lines:
+                paragraphs = [part.strip() for part in line.split("\n\n") if part.strip()]
+                wrapped.append("\n\n".join(textwrap.fill(part, 72) for part in paragraphs))
             illustration_prompt = self._build_illustration_prompt(epilogue)
             self.illustration_context = self._build_illustration_context(epilogue, illustration_prompt)
             self.illustration_status = "idle"
@@ -628,12 +690,13 @@ init python:
                 story_file.write(payload["soundtrack"])
                 story_file.write("\n")
             manifest = {
-                "archive_version": 1,
+                "archive_version": 2,
                 "created_at": datetime.datetime.now().isoformat(),
                 "profile": self.profile,
                 "genre": self.genre,
                 "opening_sentence": self.start_sentence,
                 "choices": self.choices,
+                "story_facts": self.story_facts,
                 "epilogue": epilogue,
                 "story": payload["story"],
                 "illustration_prompt": payload["illustration_prompt"],
@@ -678,10 +741,12 @@ init python:
                 "genre": self.genre,
                 "genre_label": self.profile.get("genre_label", ""),
                 "opening_sentence": self.start_sentence,
+                "story_facts": list(self.story_facts),
                 "choices": [
                     {
                         "headline": choice.get("headline", ""),
-                        "impact": choice.get("impact", "")
+                        "impact": choice.get("impact", ""),
+                        "facts": choice.get("facts", [])
                     }
                     for choice in self.choices
                 ],
@@ -906,10 +971,11 @@ label start:
         if selection is None:
             $ selection = choices[0]
         $ story_state.commit_choice(selection)
-        $ selected_narrative = selection.get("narrative", "Your decision changes the path ahead.")
-        $ selected_impact = selection.get("impact", "Its consequences carry into the next act.")
-        narrator "[selected_narrative]"
-        narrator "[selected_impact]"
+        $ selected_paragraphs = story_state.narrative_paragraphs(selection)
+        $ selected_paragraph_one = selected_paragraphs[0]
+        $ selected_paragraph_two = selected_paragraphs[1]
+        narrator "[selected_paragraph_one]"
+        narrator "[selected_paragraph_two]"
 
     hide screen story_overlay
     $ renpy.music.stop(channel="bgm")

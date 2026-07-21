@@ -10,11 +10,11 @@
 
 `StorySession` stores the protagonist profile, genre, opening sentence, act index, generated choices, selected scenes, soundtrack state, finale data, illustration state, and archive location. Five acts cover origin, growth, crisis, climax, and resolution. Genre metadata supplies settings, actions, twists, emotional beats, colors, and imagery.
 
-For each act, the game requests three choices from GPT-5.6 Luna when the proxy is available. Responses are validated before use. A deterministic procedural generator supplies three choices whenever the proxy, network, credential, or model is unavailable.
+For each act, the game makes one GPT-5.6 Luna request when the proxy is available. The request includes the opening sentence, selected choice history, last scene, and canonical story facts. Its response contains three choices; each branch includes a summary, exactly two narrative paragraphs, an impact, and 1-3 new facts. Only the selected branch is displayed, stored, and passed into the next act. Responses are validated before use. A deterministic procedural generator follows the same two-paragraph and selected-facts structure whenever the proxy, network, credential, or model is unavailable.
 
 ## Finale and persistence
 
-After five acts, the game composes the complete story, epilogue, soundtrack plan, and a structured illustration prompt. Every completed cycle is immediately archived below Ren'Py's save directory in a unique session folder:
+After five acts, the game composes the complete story with explicit transitions derived from prior facts, followed by an epilogue, soundtrack plan, and structured illustration prompt. Every completed cycle is immediately archived below Ren'Py's save directory in a unique session folder:
 
 ```text
 story_archive/<session>/story.txt
@@ -22,7 +22,7 @@ story_archive/<session>/session.json
 story_archive/<session>/illustration.png  # after successful generation only
 ```
 
-The JSON record includes the player profile, opening line, choices, finale, full story, and illustration metadata. Illustration completion copies the PNG beside the story and atomically updates the manifest.
+The version 2 JSON record includes the player profile, opening line, selected choices, accumulated story facts, finale, full story, and illustration metadata. Illustration completion copies the PNG beside the story and atomically updates the manifest.
 
 ## Illustration pipeline
 

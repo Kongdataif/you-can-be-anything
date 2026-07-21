@@ -13,11 +13,11 @@ The player enters a protagonist name, MBTI, preferred style, current mood, and a
 - Science fiction
 - Romance fantasy
 
-The story progresses through origin, growth, crisis, climax, and resolution. Every act offers three contextual choices. After each selection, its narrative scene and immediate consequence are shown before the next act begins. The selected scenes are also preserved and assembled into a finale with an act-by-act soundtrack plan. At the player's explicit request, the finale can generate and display one protagonist illustration.
+The story progresses through origin, growth, crisis, climax, and resolution. Every act offers three contextual choices. After each selection, two narrative paragraphs dramatize the action, establish its consequence, and create a hook for the next act. The selected scenes are also preserved and assembled into a connected finale with an act-by-act soundtrack plan. At the player's explicit request, the finale can generate and display one protagonist illustration.
 
 ## Current implementation
 
-The game now supports a cost-aware hybrid narrative mode. When the local story proxy is running, GPT-5.6 Luna generates three personalized choices for each act through Sogang University's OpenAI-compatible API Gateway. If the proxy, network, or model is unavailable, a player-facing procedural engine takes over automatically. Its choices describe actions and stakes without exposing internal profile context, so the core game remains presentable and playable offline.
+The game now supports a cost-aware hybrid narrative mode. When the local story proxy is running, GPT-5.6 Luna makes one request per act through Sogang University's OpenAI-compatible API Gateway. That single response contains three choice summaries, a two-paragraph possible outcome for each branch, and 1-3 canonical story facts per branch. Only the selected outcome and its facts enter session history and the next act's prompt. If the proxy, network, or model is unavailable, a stateful procedural engine uses the same selected facts and previous scene to continue the story offline without exposing internal profile context.
 
 After the fifth act, the player may approve a single `gpt-image-1-mini` illustration at `low` quality. The UI states the maximum cost before the request. Identical endings reuse a SHA-256-addressed local PNG cache for zero additional credits, active duplicate requests are rejected, and failed responses are never cached or automatically retried.
 
@@ -220,6 +220,8 @@ python scripts/story_api_server.py --image-smoke-test --mock-images
 ```
 
 The suite verifies mock file creation, cache reuse, zero cached cost, failed-request cleanup, in-flight duplicate rejection, and the `/illustration` HTTP route. Do not run a live image smoke test casually: deleting or changing the cached sample context can cause a new 8-credit request.
+
+The choice-generation mock also verifies that one request contains `opening_sentence`, `last_scene`, selected `previous_choices`, and `story_facts`; requires exactly two narrative paragraphs and 1-3 facts per branch; and uses a bounded `max_output_tokens` value of 3200. This design keeps the runtime at one text request per act rather than adding a second request after every selection.
 
 ## Build a judge-ready game package
 

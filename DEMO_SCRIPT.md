@@ -42,7 +42,7 @@ This recording intentionally demonstrates one new live illustration request. Bud
 
 ### 0:35-1:05 - Five-act choices
 
-**Show:** Display one choice screen clearly, then use short cuts to show selections across all five acts.
+**Show:** Display one choice screen clearly and show both resulting narrative paragraphs. Then use short cuts to show selections across the remaining acts so the final video stays under three minutes.
 
 **Say:**
 

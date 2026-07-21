@@ -6,6 +6,7 @@ import json
 import urllib.request
 from pathlib import Path
 from http.server import ThreadingHTTPServer
+from unittest.mock import patch
 
 from scripts import story_api_server as api
 
@@ -133,6 +134,36 @@ class IllustrationTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             worker.join(5)
+
+    def test_choice_generation_uses_one_contextual_two_paragraph_request(self):
+        context = {
+            "opening_sentence": "The door remembered her name.",
+            "last_scene": "Mina found the broken seal.",
+            "story_facts": ["The seal belongs to Mina's family."],
+            "previous_choices": [{"headline": "Break the seal"}],
+        }
+        choices = []
+        for index in range(3):
+            choices.append({
+                "headline": f"Choice {index + 1}",
+                "detail": "Take an action with a clear risk.",
+                "narrative": "The action continues the prior scene. A concrete event changes the situation.\n\nThe consequence establishes a new fact. A hook leads into the next act.",
+                "impact": "The consequence remains active.",
+                "facts": [f"Canonical fact {index + 1}"],
+            })
+        response = {"output_text": json.dumps({"choices": choices})}
+
+        with patch.object(api, "gateway_request", return_value=response) as request:
+            result = api.generate_choices(context, "unused", api.DEFAULT_MODEL, api.DEFAULT_GATEWAY)
+
+        self.assertEqual(len(result["choices"]), 3)
+        request.assert_called_once()
+        request_payload = request.call_args.args[1]
+        prompt = request_payload["input"][0]["content"]
+        self.assertEqual(request_payload["max_output_tokens"], 3200)
+        self.assertIn("story_facts", prompt)
+        self.assertIn("last_scene", prompt)
+        self.assertIn("exactly two paragraphs", prompt)
 
 
 if __name__ == "__main__":
