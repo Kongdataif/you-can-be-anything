@@ -219,7 +219,7 @@ def normalize_illustration_context(context: dict[str, Any]) -> dict[str, Any]:
 
 def build_illustration_prompt(context: dict[str, Any]) -> str:
     c = normalize_illustration_context(context)
-    return f"""Create one polished cinematic character illustration for the ending of a Korean interactive story.
+    return f"""Create one polished cinematic character illustration for the ending of an interactive story.
 The single adult protagonist is the clear focal subject. Express personality through pose, expression, lighting, and costume without printing MBTI or profile labels.
 Story data: {json.dumps(c, ensure_ascii=False, separators=(',', ':'))}
 Composition: landscape 16:9, detailed digital illustration, coherent anatomy, cinematic lighting, emotionally conclusive final scene.
