@@ -1,0 +1,65 @@
+# Directories that Ren'Py changes files in.
+/game/saves
+/game/cache
+/game/generated
+/story_archive
+/generated
+
+# Compiled script files. These are important for saving, and so should
+# be preserved by developer and build systems after the game has been released.
+/game/**/*.rpyc
+/game/**/*.rpymc
+
+# Files Ren'Py can generate.
+/game/**/*.bak
+/game/**/*.new
+/game/**/*.old
+
+# Error, log, and output files.
+/errors.txt
+/files.txt
+/image_cache.txt
+/log.txt
+/save_dump.txt
+/traceback.txt
+/lint.txt
+
+# Python caches and test/coverage output.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local API credentials and environment overrides.
+.env
+.env.*
+*.key
+*.pem
+secrets/
+pasted-text.txt
+credentials*.txt
+api_key*.txt
+
+# Launcher-generated files.
+/dialogue.tab
+/dialogue.txt
+/strings.json
+
+# Ren'Py Launcher state accidentally created when the project itself is used
+# as the projects directory. This is local machine configuration.
+/projects.txt
+
+# Local build/distribution output. Publish final ZIP files as Release assets,
+# not as source files in the Git repository.
+/build/
+/dist/
+/*-dists/
+/*.zip
+/*.7z
+/*.exe
+
+# Operating-system metadata.
+.DS_Store
+Thumbs.db
+Desktop.ini
