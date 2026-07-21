@@ -29,7 +29,7 @@ The player enters a protagonist name, MBTI, preferred style, current mood, and a
 
 The story progresses through five acts—Origin, Growth, Crisis, Climax, and Resolution. Each act presents three choices generated from the player's profile, genre, opening sentence, and previous decisions. After the final choice, the game assembles the selected scenes into a complete story.
 
-Every completed playthrough is automatically archived with its profile, opening sentence, five selected decisions, finale, illustration prompt, and soundtrack plan. The player can also explicitly approve one low-cost protagonist illustration. If an identical ending has already been illustrated, the game reuses its cached image without making another image request.
+Every playthrough receives one session ID at the beginning and is automatically archived in exactly one matching folder. Its readable story is divided into Origin, Growth, Crisis, Climax, Resolution, and Epilogue, alongside the profile, opening sentence, five selected decisions, illustration prompt, and soundtrack plan. Returning to the finale updates the same archive instead of creating a duplicate. The player can explicitly approve one low-cost protagonist illustration, which is pinned to that session folder. If an identical ending has already been illustrated, the game reuses its cached image without making another image request.
 
 The game includes a complete offline path, but GPT-5.6 Luna is the default story engine. If Luna is unavailable, the game asks the player to retry, continue offline, or return to the menu; it never changes engines silently.
 
@@ -49,7 +49,7 @@ The downloadable game remains fully playable without the proxy through its offli
 
 I used GPT-5.6 through Codex as a hands-on coding collaborator rather than only as a writing assistant. Codex inspected the existing Ren'Py project, traced its state and replay flow, identified an unregistered custom BGM channel, and modified the game code to correct it.
 
-Codex then helped convert the interface and narrative flow to English, implement the GPT-5.6 Luna choice pipeline, keep credentials outside the client, validate model output, and preserve an offline fallback. It also implemented structured finale context, explicit image-cost confirmation, background image generation, SHA-256 caching, duplicate suppression, failure handling, and automatic playthrough archives that keep the complete story and generated illustration together.
+Codex then helped convert the interface and narrative flow to English, implement the GPT-5.6 Luna choice pipeline, keep credentials outside the client, validate model output, and preserve an offline fallback. It also implemented structured finale context, explicit image-cost confirmation, background image generation, SHA-256 caching, duplicate suppression, failure handling, and idempotent session archives. Finale composition is separated from file persistence, and background image completion retains the originating archive path so the story and image stay together.
 
 Codex also created API-free mock tests for cache reuse, failed-request cleanup, duplicate rejection, and the illustration HTTP endpoint. I used those tests alongside Ren'Py 8.5.3 Lint and manual gameplay testing.
 
@@ -72,7 +72,7 @@ I also had to distinguish real Ren'Py errors from editor diagnostics. A standard
 - A credential-free offline fallback for judges and players
 - Optional GPT Image 1 Mini finale artwork with visible cost consent
 - Hash-based image caching and duplicate-request protection
-- Automatic archives containing the complete story, structured decision history, and illustration
+- One idempotent archive per session containing a headed story, structured decision history, and pinned illustration
 - English gameplay and standard Ren'Py interface
 - API-free mock tests and a successful Ren'Py 8.5.3 Lint run
 

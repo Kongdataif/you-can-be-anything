@@ -356,6 +356,11 @@ init python:
             self.offline_mode = False
             self.soundtrack_log = []
             self.session_seed = random.randint(1, 10_000_000)
+            self.session_started_at = datetime.datetime.now()
+            self.session_id = "{}-{}".format(
+                self.session_started_at.strftime("%Y%m%d-%H%M%S"),
+                str(self.session_seed)[-6:]
+            )
             self.choice_rng = random.Random(self.session_seed)
             self.current_act_index = 0
             self.music_enabled = True
@@ -375,6 +380,9 @@ init python:
             self.archive_story_path = None
             self.archive_manifest_path = None
             self.archive_error = None
+            self.archive_status = "not_saved"
+            self.finale_payload = None
+            self.finale_epilogue = ""
 
         def prepare_session(self, profile, genre, start_sentence):
             self.reset()
@@ -752,32 +760,23 @@ init python:
                 renpy.music.stop(channel="bgm")
 
         def compose_finale(self):
-            story_lines = []
-            if self.start_sentence:
-                story_lines.append(self.start_sentence)
-            transitions = [
-                "That first consequence opened the path to what followed.",
-                "With the earlier discovery still unresolved, the journey deepened.",
-                "The accumulated choices now turned the conflict into a crisis.",
-                "Everything established before this moment converged on one decision."
-            ]
+            """Build finale display data without writing files."""
+            if self.finale_payload is not None:
+                return self.finale_payload
+            sections = []
             for index, choice in enumerate(self.choices):
-                if index > 0:
-                    fact = ""
-                    previous_facts = self.choices[index - 1].get("facts", [])
-                    if previous_facts:
-                        fact = previous_facts[-1]
-                    if fact:
-                        story_lines.append("Because {}, the next chapter could not begin unchanged.".format(fact))
-                    else:
-                        story_lines.append(transitions[min(index - 1, len(transitions) - 1)])
-                story_lines.append(choice["narrative"])
+                title = choice.get("act_title") or ACT_STRUCTURE[index]["title"]
+                body = []
+                if index == 0 and self.start_sentence:
+                    body.append(self.start_sentence)
+                body.append(choice.get("narrative", ""))
+                wrapped_body = []
+                for block in body:
+                    paragraphs = [part.strip() for part in block.split("\n\n") if part.strip()]
+                    wrapped_body.extend(textwrap.fill(part, 72) for part in paragraphs)
+                sections.append("{}\n{}\n\n{}".format(title, "-" * len(title), "\n\n".join(wrapped_body)))
             epilogue = self._build_epilogue()
-            story_lines.append(epilogue)
-            wrapped = []
-            for line in story_lines:
-                paragraphs = [part.strip() for part in line.split("\n\n") if part.strip()]
-                wrapped.append("\n\n".join(textwrap.fill(part, 72) for part in paragraphs))
+            sections.append("Epilogue\n--------\n\n{}".format(textwrap.fill(epilogue, 72)))
             illustration_prompt = self._build_illustration_prompt(epilogue)
             self.illustration_context = self._build_illustration_context(epilogue, illustration_prompt)
             self.illustration_status = "idle"
@@ -789,59 +788,62 @@ init python:
             self.illustration_error = None
             soundtrack_summary = self._soundtrack_summary()
             self.session_count += 1
-            payload = {
-                "story": "\n\n".join(wrapped),
+            self.finale_epilogue = epilogue
+            self.finale_payload = {
+                "story": "\n\n".join(sections),
                 "illustration_prompt": illustration_prompt,
                 "soundtrack": soundtrack_summary
             }
-            try:
-                self._create_story_archive(payload, epilogue)
-                self.archive_error = None
-            except Exception as exc:
-                self.archive_dir = None
-                self.archive_story_path = None
-                self.archive_manifest_path = None
-                self.archive_error = str(exc)[:240]
-            return payload
+            return self.finale_payload
 
-        def _create_story_archive(self, payload, epilogue):
-            """Persist every completed playthrough before optional image generation."""
-            timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-            session_id = "{}-{}".format(timestamp, str(self.session_seed)[-6:])
+        def ensure_story_archive(self, payload=None):
+            """Create or atomically update the one archive owned by this session."""
+            payload = payload or self.compose_finale()
             root = os.path.join(renpy.config.savedir, "story_archive")
-            archive_dir = os.path.join(root, session_id)
-            suffix = 1
-            while os.path.exists(archive_dir):
-                archive_dir = os.path.join(root, "{}-{}".format(session_id, suffix))
-                suffix += 1
-            os.makedirs(archive_dir)
-            self.archive_dir = archive_dir
-            self.archive_story_path = os.path.join(archive_dir, "story.txt")
-            self.archive_manifest_path = os.path.join(archive_dir, "session.json")
-            with open(self.archive_story_path, "w", encoding="utf-8") as story_file:
-                story_file.write("You Can Be Anything\n")
-                story_file.write("=" * 24 + "\n\n")
-                story_file.write(payload["story"])
-                story_file.write("\n\nIllustration Prompt\n-------------------\n")
-                story_file.write(payload["illustration_prompt"])
-                story_file.write("\n\nSoundtrack\n----------\n")
-                story_file.write(payload["soundtrack"])
-                story_file.write("\n")
+            self.archive_dir = os.path.join(root, self.session_id)
+            os.makedirs(self.archive_dir, exist_ok=True)
+            self.archive_story_path = os.path.join(self.archive_dir, "story.txt")
+            self.archive_manifest_path = os.path.join(self.archive_dir, "session.json")
+            story_document = (
+                "You Can Be Anything\n" + "=" * 24 + "\n\n" + payload["story"]
+                + "\n\nIllustration Prompt\n-------------------\n" + payload["illustration_prompt"]
+                + "\n\nSoundtrack\n----------\n" + payload["soundtrack"] + "\n"
+            )
+            self._write_text_atomically(self.archive_story_path, story_document)
+            illustration = None
+            if os.path.isfile(self.archive_manifest_path):
+                try:
+                    with open(self.archive_manifest_path, "r", encoding="utf-8") as manifest_file:
+                        illustration = json.load(manifest_file).get("illustration")
+                except Exception:
+                    illustration = None
             manifest = {
-                "archive_version": 2,
-                "created_at": datetime.datetime.now().isoformat(),
+                "archive_version": 3,
+                "session_id": self.session_id,
+                "created_at": self.session_started_at.isoformat(),
+                "updated_at": datetime.datetime.now().isoformat(),
+                "archive_status": "image_attached" if illustration else "story_saved",
                 "profile": self.profile,
                 "genre": self.genre,
                 "opening_sentence": self.start_sentence,
                 "choices": self.choices,
                 "story_facts": self.story_facts,
-                "epilogue": epilogue,
+                "epilogue": self.finale_epilogue,
                 "story": payload["story"],
                 "illustration_prompt": payload["illustration_prompt"],
                 "soundtrack": payload["soundtrack"],
-                "illustration": None
+                "illustration": illustration
             }
             self._write_archive_manifest(manifest)
+            self.archive_status = manifest["archive_status"]
+            self.archive_error = None
+            return self.archive_dir
+
+        def _write_text_atomically(self, path, content):
+            temporary = path + ".tmp"
+            with open(temporary, "w", encoding="utf-8") as output_file:
+                output_file.write(content)
+            os.replace(temporary, path)
 
         def _write_archive_manifest(self, manifest):
             temporary = self.archive_manifest_path + ".tmp"
@@ -849,13 +851,13 @@ init python:
                 json.dump(manifest, manifest_file, ensure_ascii=False, indent=2)
             os.replace(temporary, self.archive_manifest_path)
 
-        def _attach_illustration_to_archive(self, result):
-            if not self.archive_dir or not self.archive_manifest_path:
+        def _attach_illustration_to_archive(self, result, archive_dir, manifest_path):
+            if not archive_dir or not manifest_path:
                 return
-            destination = os.path.join(self.archive_dir, "illustration.png")
+            destination = os.path.join(archive_dir, "illustration.png")
             if os.path.abspath(result["image_path"]) != os.path.abspath(destination):
                 shutil.copy2(result["image_path"], destination)
-            with open(self.archive_manifest_path, "r", encoding="utf-8") as manifest_file:
+            with open(manifest_path, "r", encoding="utf-8") as manifest_file:
                 manifest = json.load(manifest_file)
             manifest["illustration"] = {
                 "file": "illustration.png",
@@ -864,7 +866,13 @@ init python:
                 "cached": bool(result.get("cached", False)),
                 "estimated_credits": int(result.get("credits", 0))
             }
-            self._write_archive_manifest(manifest)
+            manifest["archive_status"] = "image_attached"
+            manifest["updated_at"] = datetime.datetime.now().isoformat()
+            temporary = manifest_path + ".tmp"
+            with open(temporary, "w", encoding="utf-8") as manifest_file:
+                json.dump(manifest, manifest_file, ensure_ascii=False, indent=2)
+            os.replace(temporary, manifest_path)
+            self.archive_status = "image_attached"
 
         def _build_illustration_context(self, epilogue, visual_hint):
             """Create a bounded, serializable final-state payload for image generation."""
@@ -901,9 +909,11 @@ init python:
                 return
             self.illustration_status = "generating"
             self.illustration_error = None
-            renpy.invoke_in_thread(self._illustration_worker, dict(self.illustration_context))
+            archive_dir = self.archive_dir
+            manifest_path = self.archive_manifest_path
+            renpy.invoke_in_thread(self._illustration_worker, dict(self.illustration_context), archive_dir, manifest_path)
 
-        def _illustration_worker(self, context):
+        def _illustration_worker(self, context, archive_dir, manifest_path):
             try:
                 try:
                     health_response = urllib.request.urlopen(STORY_API_HEALTH_URL, timeout=3)
@@ -922,9 +932,9 @@ init python:
                 result = json.loads(response.read().decode("utf-8"))
                 if not result.get("ok") or not result.get("image_path"):
                     raise ValueError("The image server did not return a completed file.")
-                renpy.invoke_in_main_thread(self._finish_illustration, result, None)
+                renpy.invoke_in_main_thread(self._finish_illustration, result, None, archive_dir, manifest_path)
             except Exception as exc:
-                renpy.invoke_in_main_thread(self._finish_illustration, None, self._friendly_illustration_error(exc))
+                renpy.invoke_in_main_thread(self._finish_illustration, None, self._friendly_illustration_error(exc), archive_dir, manifest_path)
 
         def _friendly_illustration_error(self, exc):
             message = str(exc)
@@ -941,7 +951,7 @@ init python:
                 return "The image service rate limit or credit limit was reached. Check the proxy log before retrying."
             return "Image generation failed. Check the local proxy log before retrying. Details: {}".format(message[:160])
 
-        def _finish_illustration(self, result, error):
+        def _finish_illustration(self, result, error, archive_dir, manifest_path):
             if error:
                 self.illustration_status = "failed"
                 self.illustration_error = error
@@ -954,7 +964,7 @@ init python:
                     self.illustration_model = result.get("model", "gpt-image-1-mini")
                     self.illustration_credits = int(result.get("credits", 0))
                     self.illustration_cached = bool(result.get("cached", False))
-                    self._attach_illustration_to_archive(result)
+                    self._attach_illustration_to_archive(result, archive_dir, manifest_path)
                     self.illustration_status = "completed"
                     self.illustration_error = None
                 except Exception as exc:
@@ -1141,6 +1151,11 @@ label start:
     hide screen story_overlay
     $ renpy.music.stop(channel="bgm")
     $ finale_payload = story_state.compose_finale()
+    python:
+        try:
+            story_state.ensure_story_archive(finale_payload)
+        except Exception as exc:
+            story_state.archive_error = str(exc)[:240]
     $ decision = "menu"
     $ decision = renpy.call_screen("finale_screen", story=finale_payload["story"], illustration_prompt=finale_payload["illustration_prompt"], soundtrack=finale_payload["soundtrack"], profile=story_state.profile)
 

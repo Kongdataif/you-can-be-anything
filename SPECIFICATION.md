@@ -14,7 +14,7 @@ The live protocol uses six GPT-5.6 Luna requests per completed cycle. `/choices`
 
 ## Finale and persistence
 
-After five acts, the game composes the complete story with explicit transitions derived from prior facts, followed by an epilogue, soundtrack plan, and structured illustration prompt. Every completed cycle is immediately archived below Ren'Py's save directory in a unique session folder:
+At playthrough start, `StorySession` creates one immutable `session_id`. After five acts, `compose_finale()` builds display data without performing file I/O. The complete story uses Origin, Growth, Crisis, Climax, Resolution, and Epilogue headings instead of inserting synthetic `Because ...` transitions between already connected AI scenes. A separate `ensure_story_archive()` operation creates or atomically updates the one session folder below Ren'Py's save directory:
 
 ```text
 story_archive/<session>/story.txt
@@ -22,7 +22,7 @@ story_archive/<session>/session.json
 story_archive/<session>/illustration.png  # after successful generation only
 ```
 
-The version 2 JSON record includes the player profile, opening line, selected choices, accumulated story facts, finale, full story, and illustration metadata. Illustration completion copies the PNG beside the story and atomically updates the manifest.
+The version 3 JSON record includes the fixed session ID, archive status, creation/update timestamps, player profile, opening line, selected choices, accumulated story facts, finale, full story, and illustration metadata. Re-entering the finale updates the same files rather than creating another directory. The background illustration task captures the session's archive and manifest paths when it starts; completion copies the PNG beside that story and atomically updates that exact manifest.
 
 ## Illustration pipeline
 

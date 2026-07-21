@@ -54,7 +54,10 @@ Never commit credentials, personal access tokens, generated save data, or secret
 - [x] Game launch confirmed.
 - [x] API-free proxy mock tests passed.
 - [ ] `[USER]` Complete one full offline five-act cycle.
-- [ ] `[USER]` Confirm `story.txt` and `session.json` appear in the reported archive folder.
+- [ ] `[USER]` Confirm one session folder contains `story.txt` and version 3 `session.json` with the same `session_id`.
+- [ ] `[USER]` Revisit the finale once and confirm it updates the same folder without creating a duplicate.
+- [ ] `[USER]` Confirm `story.txt` uses Origin, Growth, Crisis, Climax, Resolution, and Epilogue headings.
+- [ ] `[USER]` If generating an image, confirm `illustration.png` appears in that same session folder.
 - [ ] `[USER]` Build a Windows distribution ZIP and launch the extracted copy.
 - [ ] `[USER]` Upload the ZIP to a GitHub Release or another judge-accessible location.
 

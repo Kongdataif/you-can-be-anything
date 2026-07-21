@@ -13,7 +13,7 @@ The player enters a protagonist name, MBTI, preferred style, current mood, and a
 - Science fiction
 - Romance fantasy
 
-The story progresses through origin, growth, crisis, climax, and resolution. Every act offers three contextual choices. After each selection, two narrative paragraphs dramatize the action, establish its consequence, and create a hook for the next act. The selected scenes are also preserved and assembled into a connected finale with an act-by-act soundtrack plan. At the player's explicit request, the finale can generate and display one protagonist illustration.
+The story progresses through Origin, Growth, Crisis, Climax, and Resolution. Every act offers three contextual choices. After each selection, two narrative paragraphs dramatize the action, establish its consequence, and create a hook for the next act. The selected scenes are preserved in a readable finale organized under Origin, Growth, Crisis, Climax, Resolution, and Epilogue headings, followed by an act-by-act soundtrack plan. At the player's explicit request, the finale can generate and display one protagonist illustration.
 
 ## Current implementation
 
@@ -21,7 +21,7 @@ GPT-5.6 Luna is the default story engine. A live cycle uses a six-request pipeli
 
 After the fifth act, the player may approve a single `gpt-image-1-mini` illustration at `low` quality. The UI states the maximum cost before the request. Identical endings reuse a SHA-256-addressed local PNG cache for zero additional credits, active duplicate requests are rejected, and failed responses are never cached or automatically retried.
 
-Every completed playthrough is archived immediately, even when the player skips image generation or the API is offline. The archive contains the full story and a structured session record. When an illustration completes, its PNG is copied into the same playthrough directory and the manifest is updated atomically.
+Each playthrough receives one fixed `session_id` when it starts. Completion creates or atomically updates exactly one matching archive directory, even if Ren'Py revisits the finale because of rollback or screen interaction. The archive contains the full headed story and a structured version 3 session record. When an illustration completes, its PNG is copied into that same fixed directory and the manifest is updated atomically.
 
 The repository contains soundtrack metadata and checks whether each referenced file is available. Audio files are not currently bundled, so missing tracks are shown as unassigned without stopping the story.
 
@@ -40,7 +40,7 @@ GPT-5.6 through Codex was used as a hands-on development collaborator during the
 
 Codex then modified `game/script.rpy` to register the dedicated BGM channel, preserving the existing in-game BGM toggle while preventing an unknown-channel failure when audio is added. It also replaced the machine-specific quick-start document with this portable README, documented an exact judge testing path, and prepared a truthful demo narration and submission checklist.
 
-Codex also implemented the later hybrid runtime integration: a local key-holding proxy calls GPT-5.6 Luna through Sogang University's API Gateway and validates three generated choices. Luna is the default; a failed connection opens an explicit retry screen instead of silently changing the story engine. The procedural generator runs only after the player selects **Continue Offline**. Codex then implemented the optional finale illustration pipeline, including structured ending context, explicit cost confirmation, background generation, strict one-image guards, SHA-256 caching, duplicate suppression, failure handling, saved PNG display, mock tests, and a live one-image verification. This keeps the credential outside the game and repository while making GPT-5.6 the primary playable experience.
+Codex also implemented the later hybrid runtime integration: a local key-holding proxy calls GPT-5.6 Luna through Sogang University's API Gateway and validates three generated choices. Luna is the default; a failed connection opens an explicit retry screen instead of silently changing the story engine. The procedural generator runs only after the player selects **Continue Offline**. Codex then implemented the optional finale illustration pipeline, including structured ending context, explicit cost confirmation, background generation, strict one-image guards, SHA-256 caching, duplicate suppression, failure handling, saved PNG display, and mock tests. It also separated finale composition from persistence, made archives idempotent by session ID, and pinned background image completion to the originating archive. This keeps the credential outside the game and repository while making GPT-5.6 the primary playable experience.
 
 ## Requirements
 
@@ -156,7 +156,7 @@ Do not point Ren'Py at a path copied from another computer. The repository is po
 
 ### Where completed cycles are saved on Windows
 
-Open `%APPDATA%\RenPy\Choose-1758378693\story_archive` in File Explorer. Each completed cycle has its own directory containing `story.txt` and `session.json`; `illustration.png` is added after successful image generation.
+Open `%APPDATA%\RenPy\Choose-1758378693\story_archive` in File Explorer. Each playthrough has one directory named from the `session_id`, containing `story.txt` and `session.json`; revisiting the finale updates those files instead of creating a duplicate directory. `illustration.png` is added to that same directory after successful generation.
 
 ## Judge testing path
 
@@ -203,7 +203,7 @@ story_archive/
     illustration.png  # present only after successful image generation
 ```
 
-`story.txt` contains the complete prose, illustration prompt, and soundtrack summary. `session.json` contains the profile, genre, opening sentence, five selected choices, epilogue, complete story, and illustration metadata. Manifest updates use a temporary file and atomic replacement to reduce corruption risk.
+`story.txt` contains the complete prose under Origin, Growth, Crisis, Climax, Resolution, and Epilogue headings, followed by the illustration prompt and soundtrack summary. `session.json` version 3 contains the fixed `session_id`, archive status, timestamps, profile, genre, opening sentence, five selected choices, epilogue, complete story, and illustration metadata. Story and manifest updates use temporary files and atomic replacement. The image worker captures the originating archive path before it starts, so completion cannot attach the PNG to another session.
 
 ## Tests
 
@@ -219,7 +219,7 @@ Run an API-free mock image smoke test:
 python scripts/story_api_server.py --image-smoke-test --mock-images
 ```
 
-The suite verifies mock file creation, cache reuse, zero cached cost, failed-request cleanup, in-flight duplicate rejection, and the `/illustration` HTTP route. Do not run a live image smoke test casually: deleting or changing the cached sample context can cause a new 8-credit request.
+The 10-test suite verifies mock file creation, cache reuse, zero cached cost, failed-request cleanup, in-flight duplicate rejection, the `/illustration` route, and the HTTP `/choices` to `/advance` response contract. Do not run a live image smoke test casually: deleting or changing the cached sample context can cause a new 8-credit request.
 
 The choice-generation mocks verify the complete six-request protocol without contacting the API: one compact initial `/choices` request, five selection-driven `/advance` requests, two paragraphs and 1-3 facts for only the selected action, three next choices for non-final acts, and an epilogue with no next choices for the final act. Token bounds are 1000 for the initial choices and 2200 for each advance.
 

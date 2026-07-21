@@ -50,19 +50,19 @@ This recording intentionally demonstrates one new live illustration request. Bud
 
 ### 1:05-1:30 - Finale and archive
 
-**Show:** Scroll through the complete finale and soundtrack plan. Briefly show the archive folder with `story.txt` and `session.json`.
+**Show:** Scroll through the complete finale and its Origin, Growth, Crisis, Climax, Resolution, and Epilogue headings. Briefly show the single session archive folder with `story.txt` and `session.json`.
 
 **Say:**
 
-> After the fifth act, the game assembles the scenes I selected into one complete ending. Every finished cycle is immediately archived as readable story text and structured session data, including the profile, opening line, choices, finale, and illustration metadata.
+> After the fifth act, the game assembles my selected scenes under six readable story headings. Each playthrough receives one session ID, so revisiting the finale updates the same archive instead of creating duplicates. The archive includes the profile, opening line, choices, finale, and illustration metadata.
 
 ### 1:30-1:55 - Cost-controlled illustration
 
-**Show:** Select **Generate Protagonist Illustration**, pause on the cost confirmation, approve it once, show the locked generating state briefly, then cut the waiting time. Reveal the newly generated image and its new archive folder containing `illustration.png`.
+**Show:** Select **Generate Protagonist Illustration**, pause on the cost confirmation, approve it once, show the locked generating state briefly, then cut the waiting time. Reveal the newly generated image inside the same session archive folder beside `story.txt` and `session.json`.
 
 **Say:**
 
-> Illustration generation is never automatic. I am explicitly approving one new low-quality GPT Image 1 Mini request with a stated maximum cost of eight credits. It runs in the background, locks the button against duplicate requests, and saves the completed image with this playthrough's story. Identical endings can later reuse the SHA-256 cache at no additional image cost, while failures are never retried automatically.
+> Illustration generation is never automatic. I am explicitly approving one new low-quality GPT Image 1 Mini request with a stated maximum cost of eight credits. It runs in the background, locks the button against duplicate requests, and keeps the originating session path even if the interface refreshes. Identical endings can later reuse the SHA-256 cache at no additional image cost, while failures are never retried automatically.
 
 ### 1:55-2:15 - Replay and offline reliability
 
