@@ -84,7 +84,7 @@ I also learned how Ren'Py combines its own script and screen languages with Pyth
 
 ## What's next
 
-Next, I would deepen the consequences of earlier decisions so they unlock different act structures and ending types. I would also add a player-facing archive gallery, export and sharing controls, licensed soundtrack assets, broader accessibility testing, and a hosted authenticated backend for a public live-AI release.
+Next, I would add adaptive BGM generation. The game would turn each playthrough's genre, mood, act, and accumulated story facts into a soundtrack that evolves from Origin through Epilogue. I would apply the same safeguards used for illustration generation: explicit player consent, visible cost limits, content-hash caching, duplicate prevention, and clear licensing and attribution records. Each completed soundtrack would be saved inside the same session archive as its story and illustration.
 ```
 
 ## Built with

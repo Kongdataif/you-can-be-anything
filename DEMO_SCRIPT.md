@@ -1,5 +1,7 @@
 # Demo Video Script and Upload Guide
 
+For the current recording audit and the revised shot-by-shot edit plan, see `VIDEO_EDIT_PLAN.md`. The July 21 VS Code capture is 3:57.774, contains a silent audio track, and remains on the editor instead of showing the game, so it should only contribute a short code shot rather than serve as the final demo.
+
 Target runtime: **2 minutes 45 seconds**. Hard limit: **under 3 minutes**.
 
 Record a horizontal 1080p screencast with clear English narration. Hide notifications, credentials, terminals containing secrets, and personal browser tabs. Rehearse once, then remove launcher loading, typing, generation waits, mistakes, and silence.
