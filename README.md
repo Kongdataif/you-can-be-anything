@@ -1,307 +1,248 @@
 # You Can Be Anything
 
-An offline, replayable Ren'Py story experience that turns a player's profile, mood, chosen genre, opening line, and five decisions into a personalized narrative.
+An interactive Ren'Py story in which a protagonist profile, an opening sentence, and five decisions shape a complete personalized narrative.
 
-The submission build uses English for profile prompts, procedural fallback text, AI-generated choices, standard Ren'Py menus, finale controls, errors, and illustration status messages.
+![You Can Be Anything title screen](game/images/main.png)
 
-## What it does
+## Features
 
-The player enters a protagonist name, MBTI, preferred style, current mood, and an original opening sentence. They then choose one of four genres:
-
-- Mystery
-- Cyberpunk
-- Science fiction
-- Romance fantasy
-
-The story progresses through Origin, Growth, Crisis, Climax, and Resolution. Every act offers three contextual choices. After each selection, two narrative paragraphs dramatize the action, establish its consequence, and create a hook for the next act. The selected scenes are preserved in a readable finale organized under Origin, Growth, Crisis, Climax, Resolution, and Epilogue headings, followed by an act-by-act soundtrack plan. At the player's explicit request, the finale can generate and display one protagonist illustration.
-
-## Current implementation
-
-GPT-5.6 Luna is the default story engine. A live cycle uses a six-request pipeline through Sogang University's OpenAI-compatible API Gateway. The initial request creates only the first three concise choices. Each of the five selections then triggers one `/advance` request that writes two paragraphs for the chosen action, establishes 1-3 canonical facts, and returns the next three choices in the same response. The final advance returns an epilogue instead of more choices. Unselected branches never consume long-form story output. If Luna is unavailable, the game stops at an explicit decision screen; it retries Luna by default and uses the stateful procedural engine only when the player deliberately selects **Continue Offline**.
-
-After the fifth act, the player may approve a single `gpt-image-1-mini` illustration at `low` quality. The UI states the maximum cost before the request. Identical endings reuse a SHA-256-addressed local PNG cache for zero additional credits, active duplicate requests are rejected, and failed responses are never cached or automatically retried.
-
-Each playthrough receives one fixed `session_id` when it starts. Completion creates or atomically updates exactly one matching archive directory, even if Ren'Py revisits the finale because of rollback or screen interaction. The archive contains the full headed story and a structured version 3 session record. When an illustration completes, its PNG is copied into that same fixed directory and the manifest is updated atomically.
-
-The repository contains soundtrack metadata and checks whether each referenced file is available. Audio files are not currently bundled, so missing tracks are shown as unassigned without stopping the story.
-
-## Built with
-
-- Ren'Py 8.5.3 (Lint passed on July 21, 2026)
-- Python embedded in Ren'Py
-- Ren'Py Screen Language
-- GPT-5.6 through Codex for development assistance
-- GPT-5.6 Luna through the Sogang University API Gateway for runtime choices
-- GPT Image 1 Mini for an optional finale illustration
-
-## How Codex and GPT-5.6 were used
-
-GPT-5.6 through Codex was used as a hands-on development collaborator during the submission hardening process. Codex inspected the full Ren'Py codebase, traced the profile-to-finale state flow, compared the implementation with its specification, and identified a concrete audio runtime risk: the game played music through a custom `bgm` channel that had never been registered.
-
-Codex then modified `game/script.rpy` to register the dedicated BGM channel, preserving the existing in-game BGM toggle while preventing an unknown-channel failure when audio is added. It also replaced the machine-specific quick-start document with this portable README, documented an exact judge testing path, and prepared a truthful demo narration and submission checklist.
-
-Codex also implemented the later hybrid runtime integration: a local key-holding proxy calls GPT-5.6 Luna through Sogang University's API Gateway and validates three generated choices. Luna is the default; a failed connection opens an explicit retry screen instead of silently changing the story engine. The procedural generator runs only after the player selects **Continue Offline**. Codex then implemented the optional finale illustration pipeline, including structured ending context, explicit cost confirmation, background generation, strict one-image guards, SHA-256 caching, duplicate suppression, failure handling, saved PNG display, and mock tests. It also separated finale composition from persistence, made archives idempotent by session ID, and pinned background image completion to the originating archive. This keeps the credential outside the game and repository while making GPT-5.6 the primary playable experience.
+- Five-act structure: Origin, Growth, Crisis, Climax, and Resolution
+- Three contextual choices per act
+- Two story paragraphs generated for each selected path
+- GPT-5.6 Luna as the optional live story engine
+- Complete offline mode with no credential or network requirement
+- Optional GPT Image 1 Mini finale illustration with explicit cost confirmation
+- Hash-based response caching and duplicate-request protection
+- One persistent archive per playthrough, containing the story, decision history, and optional illustration
 
 ## Requirements
 
-- Windows, macOS, or Linux supported by Ren'Py 8.5.3
-- Ren'Py SDK 8.5.3 for the verified development path
-- No credential is required for the offline fallback
-- An authorized Sogang Gateway key and internet connection are required for live choices and illustration generation
+For the game:
 
-## Setup and run
+- [Ren'Py 8.5.3](https://www.renpy.org/latest.html) or a compatible Ren'Py 8.x SDK
+- Windows, macOS, or Linux supported by Ren'Py
 
-### Install the Ren'Py SDK on Windows
+For the optional live AI mode:
 
-Ren'Py is not installed through `pip`, and `renpy.exe` is not part of this repository. It is included in the extracted Ren'Py SDK. This project has been linted and launched successfully with Ren'Py 8.5.3.
+- Python 3.10 or newer
+- An authorized credential for the configured OpenAI-compatible gateway
 
-1. Open the official [Ren'Py download page](https://www.renpy.org/latest.html) and obtain Ren'Py 8.5.3.
-2. Under the main downloads, select **Download SDK 7z.exe** for Windows. The ZIP SDK also works, but the self-extracting `7z.exe` is simpler.
-3. After the download completes, open the downloaded file. Its name will resemble:
+The offline game does not require Python, an API key, or internet access beyond what is included with the Ren'Py SDK.
 
-   ```text
-   renpy-8.5.3-sdk.7z.exe
-   ```
+## Download the source
 
-4. When asked where to extract it, use a short writable path such as:
-
-   ```text
-   <your tools directory>
-   ```
-
-   Avoid extracting it into `Program Files`, the game repository, or a deeply nested OneDrive folder.
-5. After extraction, open the created SDK directory. Depending on the archive name, the path will resemble one of these:
-
-   ```text
-   <your tools directory>\renpy-8.5.3-sdk\renpy.exe
-   ```
-
-6. Double-click `renpy.exe`. This opens the Ren'Py Launcher; it does not directly open this game yet.
-7. Optional: right-click `renpy.exe` and select **Pin to Start** or **Send to → Desktop (create shortcut)**.
-
-If Windows hides file extensions, the executable may appear simply as `renpy` with an application icon. In File Explorer, enable **View → Show → File name extensions** to see `.exe`.
-
-To locate an already extracted copy, search File Explorer for:
-
-```text
-renpy.exe
+```bash
+git clone https://github.com/Kongdataif/you-can-be-anything.git
+cd you-can-be-anything
 ```
 
-or run this in PowerShell after replacing the search root with the directory where you usually install tools:
+You can also download the repository as a ZIP and extract it.
 
-Use File Explorer to search your chosen SDK extraction directory for `renpy.exe`.
+## Run the game offline
 
-Do not download the Ren'Py source-code archive for this task. The source archive does not provide the ready-to-run Windows Launcher expected by this guide.
+1. Download and extract the Ren'Py SDK.
+2. Start the Ren'Py Launcher.
+3. Open **Preferences** and set **Projects Directory** to the directory that contains this repository, not to the repository itself.
+4. Return to the launcher and select **You Can Be Anything**.
+5. Select **Check Script (Lint)**.
+6. Select **Launch Project**.
+7. Start a new game and enter the protagonist profile and opening sentence.
+8. When the live-engine screen appears, select **Continue Offline**.
 
-### Windows quick start: offline and no API cost
+The complete five-act story, finale, and archive work in offline mode.
 
-Use this path first. It makes no external model or image request.
-
-1. Complete the SDK installation above.
-2. Run `renpy.exe` from the extracted Ren'Py 8.5.3 SDK folder.
-3. In the Ren'Py Launcher, open **Preferences**.
-4. Set **Projects Directory** to the directory that contains this repository, not to the repository itself or its `game` subdirectory.
-
-5. Return to the launcher. Select **You Can Be Anything** or the project folder name shown by Ren'Py.
-6. Select **Lint** first. Fix any error reported by the Ren'Py Launcher before recording or building.
-7. Select **Launch Project**.
-8. Do not start `story_api_server.py`. At the Luna connection screen, explicitly select **Continue Offline**. The overlay will show `Choices: offline generator (player selected)`, and the complete cycle will proceed without API cost.
-9. Finish all five acts and confirm that the finale reports a playthrough archive path.
-
-The directory selected in Ren'Py must have this shape:
+The project directory recognized by Ren'Py should contain:
 
 ```text
-renpy-choose-game-main/
-  renpy-choose-game-main/    <- project selected by the launcher
-    game/
-      script.rpy
-      screens.rpy
-      options.rpy
+you-can-be-anything/
+├── game/
+│   ├── script.rpy
+│   ├── screens.rpy
+│   └── options.rpy
+├── scripts/
+├── tests/
+└── README.md
 ```
 
-Do not select `game/` itself as the projects directory.
+## Run with live GPT-5.6 Luna
 
-### Optional live AI mode
+The game never stores an API credential. Live requests go through a localhost proxy that reads the credential from the environment or from an external file.
 
-Only use this path when you intentionally want model requests. In a separate PowerShell window, change to the repository root and start the local proxy with an external credential file:
+### 1. Configure the credential
 
-   ```powershell
-   cd <repository directory>
-   python scripts/story_api_server.py --key-file "<credential file outside the repository>"
-   ```
+PowerShell:
 
-Alternatively set `SOGANG_API_KEY` and omit `--key-file`. Never copy a key into this repository. Keep the proxy terminal open, then launch the game. The overlay reports whether choices came from GPT-5.6 Luna or the offline generator.
+```powershell
+$env:SOGANG_API_KEY = "your-authorized-key"
+python scripts\story_api_server.py
+```
 
-Finale illustration generation is never automatic. It requires a separate confirmation that states the maximum expected credit cost. For an initial gameplay check, select **Cancel** in that confirmation.
+macOS or Linux:
 
-### Live AI troubleshooting
+```bash
+export SOGANG_API_KEY="your-authorized-key"
+python3 scripts/story_api_server.py
+```
 
-- `Choices: AI | gpt-5.6-luna` confirms the default live path. `Choices: GPT-5.6 Luna unavailable` opens a retry decision instead of silently falling back. `Choices: offline generator (player selected)` appears only after explicit offline consent.
-- Before approving an illustration, verify that the proxy terminal reports that it is listening on `127.0.0.1:8765`.
-- The illustration worker performs a no-cost local health check before sending an image request. If the proxy is absent, the finale shows a recoverable message instead of crashing.
-- A connection-refused message means no request reached the proxy. A timeout or provider error is different: inspect the proxy log before retrying because the upstream service may have received the request.
-- Failed requests are never retried automatically. The manual retry remains explicitly cost-labelled.
-
-Do not point Ren'Py at a path copied from another computer. The repository is portable and can be placed anywhere inside your own Ren'Py projects directory.
-
-### If VS Code shows `9+` errors on `script.rpy`
-
-`script.rpy` is not a normal Python file. It combines Ren'Py Script Language, Screen Language, and embedded Python. A Python language server therefore marks valid statements such as `screen`, `frame`, `textbutton`, and `action` as Python syntax errors.
-
-- The `9+` badge is the editor's diagnostic count, not a Ren'Py runtime result.
-- The `U` badge means the file is untracked by Git.
-- Install a Ren'Py language extension and change the file language mode from **Python** to **Ren'Py**.
-- If no Ren'Py extension is available, use **Plain Text** to avoid false Python diagnostics.
-- Treat Ren'Py Launcher's **Lint** and an actual `traceback.txt` as the authoritative error sources.
-
-### Where completed cycles are saved on Windows
-
-Open `%APPDATA%\RenPy\Choose-1758378693\story_archive` in File Explorer. Each playthrough has one directory named from the `session_id`, containing `story.txt` and `session.json`; revisiting the finale updates those files instead of creating a duplicate directory. `illustration.png` is added to that same directory after successful generation.
-
-## Judge testing path
-
-The core flow takes approximately two minutes:
-
-1. Launch the game and select **Start**.
-2. Enter the following sample profile:
-   - Name: `Mina`
-   - MBTI: `INFP`
-   - Style: `Cinematic`
-   - Mood: `Curious`
-3. Choose **Cyberpunk**.
-4. Use this opening sentence: `When I opened my eyes, the city had forgotten my name.`
-5. Select one of the three choices in each of the five acts.
-6. On the finale screen, review the completed story and soundtrack plan.
-7. Select **Generate protagonist illustration — up to 8 credits**, review the confirmation, and approve one image.
-8. Wait for the background task to finish and verify the PNG, model, and charged-or-cached status.
-9. Select **Try another path** and make at least one different choice to verify replay behavior.
-10. Use the BGM toggle to verify that the dedicated audio control remains responsive. No sound is expected until licensed `.ogg` tracks are added under `game/audio/`.
-
-## Cost and cache behavior
-
-- Text choice model: `gpt-5.6-luna`
-- Illustration model: `gpt-image-1-mini`
-- Illustration quality: `low`
-- Images per request: exactly `1`
-- Nominal image cost reported by the university guide: `8 credits`
-- Automatic image generation: disabled
-- Automatic image retry: disabled
-- Identical ending cache hit: `0` additional credits
-- Default generated image directory: `%LOCALAPPDATA%\YouCanBeAnything\generated` on Windows
-
-The proxy only allows image models listed in its internal cost table. The current list intentionally contains only `gpt-image-1-mini`.
-
-## Saved playthroughs
-
-Completed cycles are stored below Ren'Py's platform-specific save directory:
+Alternatively, keep the credential in a file outside the repository:
 
 ```text
-story_archive/
-  YYYYMMDD-HHMMSS-session/
-    story.txt
-    session.json
-    illustration.png  # present only after successful image generation
+key: your-authorized-key
 ```
 
-`story.txt` contains the complete prose under Origin, Growth, Crisis, Climax, Resolution, and Epilogue headings, followed by the illustration prompt and soundtrack summary. `session.json` version 3 contains the fixed `session_id`, archive status, timestamps, profile, genre, opening sentence, five selected choices, epilogue, complete story, and illustration metadata. Story and manifest updates use temporary files and atomic replacement. The image worker captures the originating archive path before it starts, so completion cannot attach the PNG to another session.
+Then start the proxy with:
+
+```bash
+python scripts/story_api_server.py --key-file /path/to/external-key-file.txt
+```
+
+Do not place the credential file inside the repository.
+
+### 2. Verify the proxy
+
+Open the following address in a browser:
+
+```text
+http://127.0.0.1:8765/health
+```
+
+A healthy response reports `gpt-5.6-luna` and the current story schema.
+
+### 3. Launch the game
+
+Launch the project from Ren'Py and start a new playthrough. The overlay displays:
+
+```text
+Choices: AI | gpt-5.6-luna
+```
+
+A complete live cycle uses six text requests:
+
+1. One `/choices` request creates the first three choices.
+2. Each of the five selections sends one `/advance` request.
+3. Every advance returns the selected scene, established facts, and the next choices.
+4. The final advance returns an epilogue instead of more choices.
+
+Successful text responses are cached locally. Repeating an identical request reuses the cached result.
+
+## Optional finale illustration
+
+After the final act, the player may approve one low-quality `gpt-image-1-mini` illustration.
+
+- Generation never starts automatically.
+- The confirmation screen shows the maximum cost before the request.
+- Identical image requests reuse a SHA-256-addressed cache.
+- Simultaneous duplicate requests are rejected.
+- Failed image requests are not retried automatically.
+- The completed PNG is attached to the archive for the originating playthrough.
+
+No image request is necessary to complete the game.
+
+## Saved stories
+
+Each playthrough receives one session ID. Re-entering the finale updates the same archive instead of creating another folder.
+
+On Windows, archives are stored under:
+
+```text
+%APPDATA%\RenPy\Choose-1758378693\story_archive
+```
+
+On macOS and Linux, use the normal Ren'Py save-data location for the platform and open the `story_archive` directory.
+
+Each completed session contains:
+
+```text
+story_archive/<session-id>/
+├── story.txt
+├── session.json
+└── illustration.png   # only after successful image generation
+```
+
+`story.txt` is divided into Origin, Growth, Crisis, Climax, Resolution, and Epilogue. `session.json` stores the profile, opening sentence, selected choices, established facts, archive status, and illustration metadata.
 
 ## Tests
 
-Run the API-free mock suite:
+The automated tests do not call the live text or image APIs.
 
-```powershell
+```bash
 python -m unittest tests.test_story_api_server -v
 ```
 
-Run an API-free mock image smoke test:
+The suite covers:
 
-```powershell
-python scripts/story_api_server.py --image-smoke-test --mock-images
-```
+- Initial choice generation
+- Selection-driven story advancement
+- The complete six-request story protocol
+- Finale response validation
+- HTTP endpoint contracts
+- Mock image generation
+- Cache reuse
+- Failed-request cleanup
+- In-flight duplicate rejection
 
-The 10-test suite verifies mock file creation, cache reuse, zero cached cost, failed-request cleanup, in-flight duplicate rejection, the `/illustration` route, and the HTTP `/choices` to `/advance` response contract. Do not run a live image smoke test casually: deleting or changing the cached sample context can cause a new 8-credit request.
+Run Ren'Py's parser check from the launcher with **Check Script (Lint)** before building a release.
 
-The choice-generation mocks verify the complete six-request protocol without contacting the API: one compact initial `/choices` request, five selection-driven `/advance` requests, two paragraphs and 1-3 facts for only the selected action, three next choices for non-final acts, and an epilogue with no next choices for the final act. Token bounds are 1000 for the initial choices and 2200 for each advance.
+## Build a distributable version
 
-## Build a judge-ready game package
+1. Open the project in the Ren'Py Launcher.
+2. Run **Check Script (Lint)**.
+3. Select **Build Distributions**.
+4. Choose the Windows or desktop package appropriate for your users.
+5. Extract the generated archive and test the packaged executable.
 
-1. Run the game offline once and complete a full cycle.
-2. Run **Lint** in the Ren'Py Launcher and resolve every actual error.
-3. In the launcher, select **Build Distributions**.
-4. Build the Windows package, or the combined PC package if the judges may use macOS/Linux.
-5. Extract the produced archive into a temporary directory and launch that copy once.
-6. Confirm that the packaged game reaches the finale without the proxy.
-7. Keep the source repository as the primary judge path. The packaged game may be attached to Devpost only if it fits the upload limit.
+The packaged game supports the complete offline path. The localhost proxy and credentials are intentionally not bundled.
 
-The local proxy is a separate developer process and is not automatically bundled into the Ren'Py executable. Judges can always test the offline fallback. To judge the live AI path, they need an authorized key and must start the proxy using the command above.
-
-## Git and submission workflow
-
-The `U` shown beside files in VS Code means **untracked**. After the offline cycle, Lint, and tests pass, create the first commit:
-
-```powershell
-git add .
-git status
-git commit -m "Prepare You Can Be Anything submission"
-git branch -M main
-```
-
-The submission repository is `https://github.com/Kongdataif/you-can-be-anything`. If `origin` is not already configured, connect it, then push:
-
-```powershell
-git remote add origin https://github.com/Kongdataif/you-can-be-anything.git
-git push -u origin main
-```
-
-For a private repository, grant the event-required Devpost and OpenAI judge accounts access before submitting. Do not add the university credential file, `.env`, generated images, save data, or API keys to Git.
-
-Recommended submission order:
-
-1. Choose the best matching Devpost category.
-2. Push the final source and README to GitHub.
-3. Verify private-repository judge access, if applicable.
-4. Record a public YouTube demo under three minutes using `DEMO_SCRIPT.md`.
-5. Open the video URL in an incognito window to verify public playback.
-6. Run `/feedback` in the Codex session where most work was completed and copy the Session ID.
-7. Add the repository URL, YouTube URL, judge instructions, built-with tags, gallery images, and Session ID to Devpost.
-8. This is an individual submission, so no team-member invitations are required.
-9. Preview the submission and verify that it is submitted rather than saved as a draft.
-
-Suggested private judge instructions:
+## Architecture
 
 ```text
-Install Ren'Py 8.5.3. Set the launcher projects directory to the folder containing this repository, select the project, run Lint, and launch it. No credential is required for the complete offline path. The game automatically archives each completed cycle under the Ren'Py save directory. Live GPT-5.6 Luna choices and GPT Image 1 Mini illustration generation require an authorized Sogang Gateway key and the separately started local proxy documented in README.md. Credentials are intentionally not included.
+Ren'Py client
+├── profile and genre input
+├── five-act choice flow
+├── offline story generator
+├── finale and archive persistence
+└── optional illustration UI
+        │
+        ▼
+Local Python proxy
+├── credential boundary
+├── /choices
+├── /advance
+├── /illustration
+├── response validation
+└── content-addressed caches
+        │
+        ▼
+Configured OpenAI-compatible gateway
 ```
+
+The credential remains in the proxy process and is never returned to Ren'Py.
+
+## Built with Codex and GPT-5.6
+
+GPT-5.6 through Codex was used as a hands-on coding collaborator to inspect, debug, implement, and test the project. Codex helped build the live Luna request flow, response validation, Ren'Py state handling, offline fallback, cost-aware image pipeline, background generation, response caching, idempotent session archives, and automated tests.
+
+GPT-5.6 Luna is also the optional runtime story engine. It receives structured context containing the player profile, genre, opening sentence, selected history, previous scene, and established story facts. Credentials are kept outside the game and repository.
+
+## Security and privacy
+
+- Never commit API keys, environment files, or external credential files.
+- Do not embed credentials in Ren'Py scripts or packaged builds.
+- Review generated text and images before sharing them publicly.
+- Story archives and generated images are local user data and are excluded from Git.
+
+## Known limitations
+
+- Live AI requires an authorized gateway credential and the separately running proxy.
+- The distributed game is intended to remain fully usable through offline mode.
+- Soundtrack metadata is present, but audio files and adaptive BGM generation are not yet included.
+- A player-facing archive gallery is not yet implemented; saved sessions can be opened from the filesystem.
 
 ## Project structure
 
 ```text
-game/
-  script.rpy       Narrative data, session state, five-act flow, and custom screens
-  screens.rpy      Standard Ren'Py menus and interface screens
-  options.rpy      Project metadata and build configuration
-  gui.rpy          Visual style configuration
-  images/          Main menu artwork
-SPECIFICATION.md   Detailed architecture and known extension points
-DEMO_SCRIPT.md     Sub-three-minute recording and narration guide
-SUBMISSION_CHECKLIST.md  Final Devpost handoff checklist
+game/                       Ren'Py scripts and assets
+scripts/story_api_server.py Local AI proxy
+tests/                      API-free proxy tests
+SPECIFICATION.md            Technical design notes
 ```
-
-## Known limitations
-
-- AI choice generation requires the separately started local proxy and an authorized Sogang API credential.
-- Earlier choices affect accumulated context, but do not yet unlock entirely different act graphs.
-- Referenced BGM files are not bundled.
-- Automated Ren'Py launcher tests are not included; the judge path above is the current smoke test.
-
-## Next steps
-
-- Add distinct state-driven ending types and deeper consequences for earlier decisions.
-- Bundle properly licensed audio and document attribution.
-- Add export or copy controls for completed stories.
-- Improve input validation and accessibility.
-- Add a user-facing cache gallery and optional deletion controls.
-
-## License and assets
-
-The bundled interface assets and font should be reviewed for redistribution terms before a public production release. Any future music must include its license and attribution in this repository.

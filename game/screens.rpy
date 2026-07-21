@@ -1,13 +1,5 @@
-﻿################################################################################
-## 초기화
-################################################################################
 
 init offset = -1
-
-
-################################################################################
-## 스타일
-################################################################################
 
 style default:
     properties gui.text_properties()
@@ -75,24 +67,6 @@ style frame:
     padding gui.frame_borders.padding
     background Frame("gui/frame.png", gui.frame_borders, tile=gui.frame_tile)
 
-
-
-################################################################################
-## 게임내 스크린
-################################################################################
-
-
-## Say 스크린 #####################################################################
-##
-## Say 스크린은 플레이어에게 대사를 출력할 때 씁니다. 화자 who와 대사 what, 두
-## 개의 매개변수를 받습니다. (화자 이름이 없으면 who는 None일 수 있음)
-##
-## 이 스크린은 id "what"을 가진 텍스트 디스플레이어블을 생성해야 합니다. (이
-## 디스플레이어블은 렌파이의 대사 출력에 필요합니다.) id "who" 와 id "window"
-## 디스플레이블이 존재할 경우 관련 스타일 속성이 적용됩니다.
-##
-## https://www.renpy.org/doc/html/screen_special.html#say
-
 screen say(who, what):
 
     window:
@@ -106,16 +80,8 @@ screen say(who, what):
                 text who id "who"
 
         text what id "what"
-
-
-    ## 사이드 이미지가 있는 경우 글자 위에 표시합니다. 휴대폰 환경에서는 보이지
-    ## 않습니다.
     if not renpy.variant("small"):
         add SideImage() xalign 0.0 yalign 1.0
-
-
-## Character 객체를 통해 스타일을 지정할 수 있도록 namebox를 사용할 수 있게 만
-## 듭니다.
 init python:
     config.character_id_prefixes.append('namebox')
 
@@ -160,15 +126,6 @@ style say_dialogue:
 
     adjust_spacing False
 
-## Input 스크린 ###################################################################
-##
-## 플레이어 입력을 받는 renpy.input을 출력할 때 쓰이는 스크린입니다. prompt 매
-## 개변수를 통해 입력 지문을 표시할 수 있습니다.
-##
-## 이 스크린은 id "input"을 가진 input 디스플레이어블을 생성해야 합니다.
-##
-## https://www.renpy.org/doc/html/screen_special.html#input
-
 screen input(prompt):
     style_prefix "input"
 
@@ -192,15 +149,6 @@ style input_prompt:
 style input:
     xalign gui.dialogue_text_xalign
     xmaximum gui.dialogue_width
-
-
-## Choice 스크린 ##################################################################
-##
-## menu 명령어로 생성된 게임내 선택지를 출력하는 스크린입니다. 한 개의 매개변수
-## items를 받고, 이는 선택지 내용(caption)과 선택지 결과(action)이 있는 오브젝
-## 트가 들어있는 리스트입니다.
-##
-## https://www.renpy.org/doc/html/screen_special.html#choice
 
 screen choice(items):
     style_prefix "choice"
@@ -227,14 +175,7 @@ style choice_button is default:
 style choice_button_text is default:
     properties gui.text_properties("choice_button")
 
-
-## Quick Menu 스크린 ##############################################################
-##
-## 퀵메뉴는 게임 외 메뉴 접근성을 높여주기 위해 게임 내에 표시됩니다.
-
 screen quick_menu():
-
-    ## 다른 화면 위에 표시되는지 확인합니다.
     zorder 100
 
     if quick_menu:
@@ -251,10 +192,6 @@ screen quick_menu():
             textbutton _("Q.Save") action QuickSave()
             textbutton _("Q.Load") action QuickLoad()
             textbutton _("Prefs") action ShowMenu('preferences')
-
-
-## 플레이어가 UI(스크린)을 일부러 숨기지 않는 한 퀵메뉴가 게임 내에 오버레이로
-## 출력되게 합니다.
 init python:
     config.overlay_screens.append("quick_menu")
 
@@ -273,16 +210,6 @@ style quick_button:
 
 style quick_button_text:
     properties gui.text_properties("quick_button")
-
-
-################################################################################
-## Main과 Game Menu 스크린
-################################################################################
-
-## Navigation 스크린 ##############################################################
-##
-## 이 스크린은 메인메뉴와 게임외 메뉴에 포함되어 다른 메뉴로 이동하거나 게임을
-## 시작/종료할 수 있게 합니다.
 
 screen navigation():
 
@@ -319,14 +246,9 @@ screen navigation():
         textbutton _("About") action ShowMenu("about")
 
         if renpy.variant("pc") or (renpy.variant("web") and not renpy.variant("mobile")):
-
-            ## 도움말 메뉴는 모바일 디바이스와 맞지 않아 불필요합니다.
             textbutton _("Help") action ShowMenu("help")
 
         if renpy.variant("pc"):
-
-            ## iOS에서는 종료 버튼이 금지되어 있으며 Android 및 웹에서는 불필
-            ## 요합니다.
             textbutton _("Quit") action Quit(confirm=not main_menu)
 
 
@@ -341,27 +263,12 @@ style navigation_button_text:
     properties gui.text_properties("navigation_button")
 
 
-## Main Menu 스크린 ###############################################################
-##
-## 렌파이가 시작할 때 메인메뉴를 출력합니다.
-##
-## https://www.renpy.org/doc/html/screen_special.html#main-menu
-
-
-
 screen main_menu():
-
-    ## 이렇게 하면 다른 메뉴 화면이 모두 교체됩니다.
     tag menu
 
     add "images/main.png"
-
-    ## 이 빈 프레임은 기본 메뉴를 어둡게 만듭니다.
     frame:
         style "main_menu_frame"
-
-    ## use 명령어로 스크린 내에 다른 스크린을 불러옵니다. 메인 메뉴 스크린의
-    ## 내용물은 navigation 스크린에 있습니다.
     use navigation
 
     if gui.show_name:
@@ -404,15 +311,6 @@ style main_menu_title:
 style main_menu_version:
     properties gui.text_properties("version")
 
-
-## Game Menu 스크린 ###############################################################
-##
-## 게임 메뉴의 기본 틀입니다. 매개변수 title로 스크린 제목을 정하고, 배경, 제
-## 목, 그리고 navigation 스크린을 출력합니다.
-##
-## scroll 매개변수는, None, "viewport" 혹은 "vpgrid" 중 하나여야 합니다.
-## transclude 명령어를 통해 다른 스크린을 이 스크린 내부에 불러옵니다.
-
 screen game_menu(title, scroll=None, yinitial=0.0, spacing=0):
 
     style_prefix "game_menu"
@@ -426,8 +324,6 @@ screen game_menu(title, scroll=None, yinitial=0.0, spacing=0):
         style "game_menu_outer_frame"
 
         hbox:
-
-            ## 탐색 섹션을 위한 공간 예약.
             frame:
                 style "game_menu_navigation_frame"
 
@@ -535,20 +431,9 @@ style return_button:
     yalign 1.0
     yoffset -45
 
-
-## About 스크린 ###################################################################
-##
-## 이 스크린은 게임과 렌파이 엔진 크레딧과 저작권 정보를 표시합니다.
-##
-## 특별할 것이 없으므로 스크린을 새로 커스터마이징하여 만드는 예제이기도 합니다.
-
 screen about():
 
     tag menu
-
-    ## 이 use 명령어로 game_menu 스크린을 이 스크린 내에 불러옵니다. use 명령
-    ## 어 하위블럭(vbox 내용)은 game_menu 스크린 내 transclude 명령어가 있는 곳에
-    ## 다시 불려집니다.
     use game_menu(_("About"), scroll="viewport"):
 
         style_prefix "about"
@@ -557,8 +442,6 @@ screen about():
 
             label "[config.name!t]"
             text _("Version [config.version!t]\n")
-
-            ## gui.about 의 내용은 보통 options.rpy에 있습니다.
             if gui.about:
                 text "[gui.about!t]\n"
 
@@ -571,15 +454,6 @@ style about_text is gui_text
 
 style about_label_text:
     size gui.label_text_size
-
-
-## Load 그리고 Save 스크린 ###########################################################
-##
-## 이 스크린은 세이브/로드에 쓰입니다. 거의 동일하기 때문에, file_slots 스크린
-## 을 불러와서 씁니다.
-##
-## https://www.renpy.org/doc/html/screen_special.html#save https://
-## www.renpy.org/doc/html/screen_special.html#load
 
 screen save():
 
@@ -602,11 +476,7 @@ screen file_slots(title):
     use game_menu(title):
 
         fixed:
-
-            ## input이 세이브/로드 버튼보다 먼저 엔터에 반응하도록 합니다.
             order_reverse True
-
-            ## 페이지 제목을 플레이어가 수정할 수 있음.
             button:
                 style "page_label"
 
@@ -617,8 +487,6 @@ screen file_slots(title):
                 input:
                     style "page_label_text"
                     value page_name_value
-
-            ## 파일 슬롯 그리드.
             grid gui.file_slot_cols gui.file_slot_rows:
                 style_prefix "slot"
 
@@ -638,15 +506,13 @@ screen file_slots(title):
 
                         add FileScreenshot(slot) xalign 0.5
 
-                        text FileTime(slot, format=_("{#file_time}%A, %B %d %Y, %H:%M"), empty=_("빈 슬롯")):
+                        text FileTime(slot, format=_("{#file_time}%A, %B %d %Y, %H:%M"), empty=_("Empty Slot")):
                             style "slot_time_text"
 
                         text FileSaveName(slot):
                             style "slot_name_text"
 
                         key "save_delete" action FileDelete(slot)
-
-            ## 페이지 이동 버튼.
             vbox:
                 style_prefix "page"
 
@@ -666,8 +532,6 @@ screen file_slots(title):
 
                     if config.has_quicksave:
                         textbutton _("{#quick_page}Quick") action FilePage("quick")
-
-                    ## 범위(1, 10)는 1부터 9까지 숫자를 제공합니다.
                     for page in range(1, 10):
                         textbutton "[page]" action FilePage(page)
 
@@ -717,13 +581,6 @@ style slot_button:
 style slot_button_text:
     properties gui.text_properties("slot_button")
 
-
-## Preferences 스크린 #############################################################
-##
-## Preferences 스크린에서는 각종 환경설정을 플레이어가 지정할 수 있습니다.
-##
-## https://www.renpy.org/doc/html/screen_special.html#preferences
-
 screen preferences():
 
     tag menu
@@ -749,9 +606,6 @@ screen preferences():
                     textbutton _("Unseen Text") action Preference("skip", "toggle")
                     textbutton _("After Choices") action Preference("after choices", "toggle")
                     textbutton _("Transitions") action InvertSelected(Preference("transitions", "toggle"))
-
-                ## "radio_pref" 나 "check_pref" 를 추가하여 그 외에도 환경설정
-                ## 항목을 추가할 수 있습니다.
 
             null height (4 * gui.pref_spacing)
 
@@ -875,18 +729,9 @@ style slider_button_text:
 style slider_vbox:
     xsize 675
 
-
-## History 스크린 #################################################################
-##
-## 지난 대사록을 출력합니다. _history_list 에 저장된 대사 기록을 확인합니다.
-##
-## https://www.renpy.org/doc/html/history.html
-
 screen history():
 
     tag menu
-
-    ## 이 스크린은 내용이 아주 많을 수 있으므로 prediction을 끕니다.
     predict False
 
     use game_menu(_("History"), scroll=("vpgrid" if gui.history_height else "viewport"), yinitial=1.0, spacing=gui.history_spacing):
@@ -896,9 +741,6 @@ screen history():
         for h in _history_list:
 
             window:
-
-                ## history_height 이 None일 경우 레이아웃이 틀어지지 않게 합니
-                ## 다.
                 has fixed:
                     yfit True
 
@@ -907,9 +749,6 @@ screen history():
                     label h.who:
                         style "history_name"
                         substitute False
-
-                        ## 화자 Character에 화자 색깔이 지정되어 있으면 불러옵
-                        ## 니다.
                         if "color" in h.who_args:
                             text_color h.who_args["color"]
 
@@ -919,9 +758,6 @@ screen history():
 
         if not _history_list:
             label _("The dialogue history is empty.")
-
-
-## 이것은 대사록 화면에 표시할 수 있는 태그를 결정합니다.
 
 define gui.history_allow_tags = { "alt", "noalt", "rt", "rb", "art" }
 
@@ -963,12 +799,6 @@ style history_label:
 
 style history_label_text:
     xalign 0.5
-
-
-## Help 스크린 ####################################################################
-##
-## 입력장치의 기능을 설명합니다. 각 입력장치별 설정은 keyboard_help,
-## mouse_help, gamepad_help 스크린을 각각 불러와서 출력합니다.
 
 screen help():
 
@@ -1124,22 +954,7 @@ style help_label_text:
     xalign 1.0
     textalign 1.0
 
-
-
-################################################################################
-## 그 외 스크린
-################################################################################
-
-
-## Confirm 스크린 #################################################################
-##
-## 게임 입력 관련 예/아니오 질문을 플레이어에게 할 때 이 스크린을 표시합니다.
-##
-## https://www.renpy.org/doc/html/screen_special.html#confirm
-
 screen confirm(message, yes_action, no_action):
-
-    ## 이 스크린이 출력 중일 때 다른 스크린과 상호작용할 수 없게 합니다.
     modal True
 
     zorder 200
@@ -1165,8 +980,6 @@ screen confirm(message, yes_action, no_action):
 
                 textbutton _("Yes") action yes_action
                 textbutton _("No") action no_action
-
-    ## 우클릭과 esc는 '아니오'를 입력하는 것과 같습니다.
     key "game_menu" action no_action
 
 
@@ -1192,13 +1005,6 @@ style confirm_button:
 style confirm_button_text:
     properties gui.text_properties("confirm_button")
 
-
-## Skip indicator 스크린 ##########################################################
-##
-## Skip_indicator 스크린은 스킵 중일 때 "스킵 중"을 표시하기 위해 출력됩니다.
-##
-## https://www.renpy.org/doc/html/screen_special.html#skip-indicator
-
 screen skip_indicator():
 
     zorder 100
@@ -1214,9 +1020,6 @@ screen skip_indicator():
             text "▸" at delayed_blink(0.0, 1.0) style "skip_triangle"
             text "▸" at delayed_blink(0.2, 1.0) style "skip_triangle"
             text "▸" at delayed_blink(0.4, 1.0) style "skip_triangle"
-
-
-## 이 transform으로 화살표를 순서대로 페이드인/페이드아웃합니다.
 transform delayed_blink(delay, cycle):
     alpha .5
 
@@ -1243,16 +1046,7 @@ style skip_text:
     size gui.notify_text_size
 
 style skip_triangle:
-    ## BLACK RIGHT-POINTING SMALL TRIANGLE 글리프가 있는 글꼴을 사용해야 합니다.
     font "DejaVuSans.ttf"
-
-
-## Notify 스크린 ##################################################################
-##
-## Notify 스크린으로 플레이어에게 메시지를 출력합니다. (예를 들어 '퀵세이브 완
-## 료'나 '스크린샷 저장 완료')
-##
-## https://www.renpy.org/doc/html/screen_special.html#notify-screen
 
 screen notify(message):
 
@@ -1286,13 +1080,6 @@ style notify_text:
     properties gui.text_properties("notify")
 
 
-## NVL 스크린 #####################################################################
-##
-## NVL모드 대사와 선택지를 출력합니다.
-##
-## https://www.renpy.org/doc/html/screen_special.html#nvl
-
-
 screen nvl(dialogue, items=None):
 
     window:
@@ -1300,8 +1087,6 @@ screen nvl(dialogue, items=None):
 
         has vbox:
             spacing gui.nvl_spacing
-
-        ## vpgrid나 vbox 내에 대사를 출력합니다.
         if gui.nvl_height:
 
             vpgrid:
@@ -1313,9 +1098,6 @@ screen nvl(dialogue, items=None):
         else:
 
             use nvl_dialogue(dialogue)
-
-        ## 주어진 경우 메뉴를 표시합니다. config.narrator_menu가 True로 설정된
-        ## 경우 메뉴가 잘못 표시될 수 있습니다.
         for i in items:
 
             textbutton i.caption:
@@ -1342,9 +1124,6 @@ screen nvl_dialogue(dialogue):
 
                 text d.what:
                     id d.what_id
-
-
-## 동시에 출력될 수 있는 NVL 대사의 최대치를 조정합니다.
 define config.nvl_list_length = gui.nvl_list_length
 
 style nvl_window is default
@@ -1401,16 +1180,6 @@ style nvl_button:
 
 style nvl_button_text:
     properties gui.text_properties("nvl_button")
-
-
-## Bubble screen ###############################################################
-##
-## 말풍선 화면은 말풍선을 사용할 때 플레이어에게 대화를 표시하는 데 사용됩니다.
-## 말풍선 화면은 말풍선 화면과 동일한 매개변수를 사용하며, "what" 아이디로 표시
-## 가능 항목을 생성해야 하며, "namebox", "who", "window" 아이디로 표시 가능 항
-## 목을 생성할 수 있습니다.
-##
-## https://www.renpy.org/doc/html/bubble.html#bubble-screen
 
 screen bubble(who, what):
     style_prefix "bubble"
@@ -1495,18 +1264,9 @@ define bubble.expand_area = {
     "thought" : (0, 0, 0, 0),
 }
 
-
-
-################################################################################
-## 모바일 버전
-################################################################################
-
 style pref_vbox:
     variant "medium"
     xsize 675
-
-## 마우스가 없고 화면이 작을 가능성이 높으므로, 퀵메뉴 버튼의 크기를 키우고 가
-## 짓수를 줄입니다.
 screen quick_menu():
     variant "touch"
 

@@ -63,3 +63,12 @@ api_key*.txt
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local submission and video-production materials.
+/DEMO_SCRIPT.md
+/DEVPOST_SUBMISSION.md
+/SUBMISSION_CHECKLIST.md
+/VIDEO_EDIT_PLAN.md
+/VIDEO_SUBTITLES_EN.srt
+/README.txt
+/.vscode/
